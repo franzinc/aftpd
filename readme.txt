@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: readme.txt,v 1.1 2002/09/17 17:13:33 layer Exp $
+$Id: readme.txt,v 1.2 2002/09/17 22:50:21 dancy Exp $
 
 *******************************************************************************
 1. Installation
@@ -76,7 +76,8 @@ the appropriate scripts to make the FTP server start up at boot time.
 For linux, the installation is assumed to be Redhat-like.
 
 To execute the server by hand, run /usr/local/sbin/aftpd/aftpd.
-Information on optional command line switches follows.
+Information on optional command line switches follows.  The FTP server
+only works properly when run as 'root'.
 
 *******************************************************************************
 2. Configuration
@@ -98,10 +99,22 @@ Command line options:
 *******************************************************************************
 2A. Configuration: anonymous FTP setup
 
-*anonymous-ftp-account* must exist in /etc/passwd and it's home
-directory must exist.  The home directory should be set up for a
-chroot environment.  Required files (relative to the chroot'd home
-directory)
+There are two configuration variables related to the anonymous FTP
+account.  *anonymous-ftp-names* lists the desired aliases for the
+anonymous login account.  The default value of *anonymous-ftp-names*
+is ("ftp" "anonymous"), which means that supply the login name 'ftp'
+or 'anonymous' during an FTP login session will initiate an anonymous
+FTP session.
+
+The second configuration variable is *anonymous-ftp-account*.  This
+variable defaults to "ftp" and names the local account under which
+operations will be performed during the anonymous FTP session.  Make
+sure the account exists in /etc/passwd. 
+
+
+The home directory for the *anonymous-ftp-account* should be set up
+for a chroot environment.  Required files (relative to the chroot'd
+home directory)
 
 /dev/null
     Linux:
@@ -151,15 +164,34 @@ config.cl must be open on the firewall.  Additionally, ports given by
 
 Restricted users:
 
-The restricted users feature allows you to confine users to their home
-directory and below.  This feature is best for FTP-only users (i.e.,
-users that have no other file access on the system beyond FTP).  If a
-user has, for example, shell access to the system, they can make a
-symbolic link in their home directory that will allow them to escape
-this restriction.  The FTP protocol implemented in this version of the
+If you would like to give a user restricted FTP access to files in
+their home directory (and below), you can use the *restricted-users*
+feature.  
+
+*restricted-users* defaults to the empty list, meaning no regular
+users are restricted.  To restrict users, simply set this variable to
+the list of those user's login name strings.  For example, to restrict
+users joe, bobby, and mike, add the following line to /etc/aftpd.cl:
+
+(setq *restricted-users* '("joe" "bobby" "mike"))
+
+To restrict a single users, you must still use a list like so:
+
+(setq *restricted-users* '("joe"))
+
+This feature is best for FTP-only users, i.e., users that have no
+other file access on the system beyond FTP.  If a user has, for
+example, shell or NFS access to the system, they could make a symbolic
+link in their home directory that will allow them to escape this
+restriction.  The FTP protocol implemented in this version of the
 Allegro FTPd doesn't allow for the creation of symbolic links, so
 FTP-only accounts shouldn't (in the absence of bugs) be able to
-escape.
+escape.  
+
+The usual way of disabling shell access for an account is to change
+the user's shell to something like /sbin/nologin or /bin/false.
+Again, make sure that you've disabled any other possible filesystem
+access methods that may be available to the restricted user.
 
 If you want to allow a restricted user to reach other restricted
 subsets of the filesystem, you can make symbolic links in their home
