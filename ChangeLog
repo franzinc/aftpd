@@ -1,3 +1,11 @@
+*** Don't forget to increment the version number in ftpd.cl for each commit
+*** [and leave this message at the top of the file]
+
+2002-02-14  Kevin Layer  <layer@crikey>
+1.0.11
+
+	* ftpd.cl: add version #
+
 2002-01-21  Ahmon Dancy  <dancy@dancy>
 
 	* CONFIG: Added RCS id tag.  Added pointer to Security notes

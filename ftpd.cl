@@ -1,6 +1,8 @@
-;; $Id: ftpd.cl,v 1.18 2002/01/21 23:18:05 dancy Exp $
+;; $Id: ftpd.cl,v 1.19 2002/02/15 01:28:45 layer Exp $
 
 (in-package :user)
+
+(defvar *ftpd-version* "1.0.11")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
