@@ -1,6 +1,15 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-12-12  Kevin Layer  <layer@crikey>
+1.0.20
+
+	* ftpd.cl:
+	- cmd-stou does not exist (STOU is not implemented)
+	- DNS: use only acldns and not C library
+	- use umask for MKD
+	- MDTM was returning the wrong time
+
 *******************************************************************************
 1.0.19 release
 *******************************************************************************

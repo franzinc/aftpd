@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.31 2002/11/20 22:55:29 dancy Exp $
+;; $Id: ftpd.cl,v 1.32 2002/12/13 00:34:20 layer Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.19")
+(defvar *ftpd-version* "1.0.20")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -93,7 +93,7 @@
 	      ("allo" t t cmd-allo)
 	      ("rest" t t cmd-rest)
 	      ("stor" t t cmd-stor)
-	      ("stou" nil t cmd-stou)
+	      ("stou" nil t nil)
 	      ("retr" t t cmd-retr)
 	      ("list" t t cmd-list)
 	      ("nlst" t t cmd-nlst)
@@ -143,6 +143,7 @@
 				  :local-host *interface*
 				  :local-port *ftpport*
 				  :reuse-address t)))
+    (setq socket:*dns-mode* '(:acldns))
     (socket:configure-dns :auto t)
     (unwind-protect
 	(loop
@@ -1388,7 +1389,12 @@
       (if (and (anonymous client) *anonymous-mkdir-disabled*)
 	  (return (outline "553 MKD Permission denied.")))
       
-      (handler-case (make-directory fullpath)
+      (handler-case
+	  (with-umask ((if (and (anonymous client)
+				*quarantine-anonymous-uploads*)
+			   #o777 
+			 (client-umask client)))
+	    (make-directory fullpath))
 	(file-error (c)
 	  (return 
 	    (outline "550 ~A: ~A." newdir 
@@ -1447,10 +1453,11 @@
 
 ;; YYYYMMDDhhmmss   (in GMT)
 (defun make-mdtm-string (utime)
-  (locale-print-time 
-   (+ utime (encode-universal-time 0 0 0 1 1 1900))
-   :fmt "%Y%m%d%H%M%S" :stream nil))
-
+  (flet ((gmt-cast (ut)
+	   (let ((hc (nth-value 2 (decode-universal-time ut)))
+		 (hz (nth-value 2 (decode-universal-time ut 0))))
+	     (+ ut (* (- hz hc) #.(* 60 60))))))
+    (locale-print-time (gmt-cast utime) :fmt "%Y%m%d%H%M%S" :stream nil)))
 
 (defun parse-cmdline (cmdline)
   (let ((args (delimited-string-to-list cmdline " "))
