@@ -1,4 +1,4 @@
-;; $Id: config.cl,v 1.3 2002/09/17 22:14:17 layer Exp $
+;; $Id: config.cl,v 1.4 2002/12/13 17:56:26 dancy Exp $
 ;;
 ;; IMPORTANT:
 ;;   This file merely contains the default values for aFTPd and changing
@@ -77,6 +77,7 @@
 (defparameter *interface* nil) ;; nil means all
 
 (defparameter *default-umask* #o022) 
+(defparameter *default-directory-mode* #o755)
 
 ;; This is the list of login names that are treated as anonymous FTP
 ;; users.  This parameter must always be a list, even if there is only

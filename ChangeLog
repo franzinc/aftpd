@@ -1,6 +1,21 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-12-13  Ahmon Dancy  <dancy@dancy>
+1.0.21
+      * config.cl:  Added *default-directory-mode* parameter which is used
+      for directories created by MKD.  Note that umask will affect final
+      mode that is used.
+	 
+      * ftpd.cl: Updated the cleanup func to display a reason for the
+      closeout.  
+
+	cmd-mkd:  Pass the new *default-directory-mode* parameter to
+	make-directory.  Also, if anonymous mkdir's are allowed, don't
+	bother quarantining anonymous mkdirs.  That would just result in a
+	bunch of emtpy directories being created that can't be accessed.
+	
+	
 2002-12-12  Kevin Layer  <layer@crikey>
 1.0.20
 
@@ -10,6 +25,8 @@
 	- use umask for MKD
 	- MDTM was returning the wrong time
 
+
+	
 *******************************************************************************
 1.0.19 release
 *******************************************************************************

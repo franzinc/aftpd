@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.32 2002/12/13 00:34:20 layer Exp $
+;; $Id: ftpd.cl,v 1.33 2002/12/13 17:56:26 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.20")
+(defvar *ftpd-version* "1.0.21")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -338,16 +338,16 @@
 	  (loop
 	    (let ((req (get-request client)))
 	      (if (eq req :eof)
-		  (return (cleanup client)))
+		  (return (cleanup client "Disconnected")))
 	      (if* (eq req :timeout)
 		 then
 		      (ignore-errors ;; in case the connection disappeared
 		       (outline "421 Timeout: closing control connection."))
-		      (return (cleanup client)))
+		      (return (cleanup client "Timeout")))
 	      (if (eq req :line-too-long)
 		  (outline "500 Command line too long! Request ignored")
 		(if (eq (dispatch-cmd client req) :quit)
-		    (return (cleanup client)))))))
+		    (return (cleanup client "QUIT")))))))
       (error (c)
 	(ignore-errors ;; in case the connection disappeared.
 	 (outline "421 Error: ~A -- closing control connection."
@@ -387,10 +387,11 @@
 		   (subseq cmdstring (1+ spacepos))
 		 "")))))
 
-(defun cleanup (client)
-  (ftp-log "Client from ~A disconnected.~%"
+(defun cleanup (client reason)
+  (ftp-log "Client from ~A disconnected (~a).~%"
 	  (socket:ipaddr-to-dotted
-	   (socket:remote-host (client-sock client))))
+	   (socket:remote-host (client-sock client)))
+	  reason)
   (cleanup-data-connection client))
 
 (defmacro with-root-privs (() &body body)
@@ -1378,7 +1379,6 @@
       
       (outline "250 RMD command successful."))))
   
-;; XXX -may want to use the 'mode' optional arg to make-directory
 (defun cmd-mkd (client newdir)
   (block nil
     (let ((fullpath (make-full-path (pwd client) newdir)))
@@ -1390,11 +1390,8 @@
 	  (return (outline "553 MKD Permission denied.")))
       
       (handler-case
-	  (with-umask ((if (and (anonymous client)
-				*quarantine-anonymous-uploads*)
-			   #o777 
-			 (client-umask client)))
-	    (make-directory fullpath))
+	  (with-umask ((client-umask client))
+	    (make-directory fullpath *default-directory-mode*))
 	(file-error (c)
 	  (return 
 	    (outline "550 ~A: ~A." newdir 
