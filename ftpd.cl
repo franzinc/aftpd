@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.21 2002/08/09 22:44:52 dancy Exp $
+;; $Id: ftpd.cl,v 1.22 2002/09/16 18:03:16 layer Exp $
 
 (in-package :user)
 
@@ -10,8 +10,6 @@
 ;; Location of the configuration files (which one can use to 
 ;; override the rest of these parameters).
 (defparameter *configfile* "/etc/aftpd.cl")
-
-(eval-when (compile eval load) (load "config.cl"))
 
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
