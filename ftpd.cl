@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.17 2002/01/18 23:31:04 dancy Exp $
+;; $Id: ftpd.cl,v 1.18 2002/01/21 23:18:05 dancy Exp $
 
 (in-package :user)
 
@@ -118,6 +118,8 @@
 ;; Put longest extensions first (due to the way matching is done)
 ;; Vectors are used so that no intermediate shell is spawned by
 ;; run-shell-command.  This is very important for security.
+;; See the 'Security notes' section of the README file for additional
+;; information regarding conversions security.
 (defparameter *conversions*
     '((".tar.bz2" . #.(vector "/bin/tar" "cjf" "-"))
       (".tar.gz" . #("/bin/tar" "czf" "-"))

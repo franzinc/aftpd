@@ -1,3 +1,5 @@
+;; $Id: CONFIG,v 1.2 2002/01/21 23:18:05 dancy Exp $
+
 This is a copy of the configuration section of ftpd.cl.  These are 
 the default configuration values.  To override a value, simply supply
 a similiar defparameter form in /etc/aftpd.cl.   
@@ -112,6 +114,8 @@ a similiar defparameter form in /etc/aftpd.cl.
 ;; Put longest extensions first (due to the way matching is done)
 ;; Vectors are used so that no intermediate shell is spawned by
 ;; run-shell-command.  This is very important for security.
+;; See the 'Security notes' section of the README file for additional
+;; information regarding conversions security.
 (defparameter *conversions*
     '((".tar.bz2" . #.(vector "/bin/tar" "cjf" "-"))
       (".tar.gz" . #("/bin/tar" "czf" "-"))

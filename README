@@ -1,4 +1,4 @@
-$Id: README,v 1.4 2002/01/18 23:31:04 dancy Exp $
+$Id: README,v 1.5 2002/01/21 23:18:05 dancy Exp $
 
 ---building---
 
@@ -47,6 +47,9 @@ Optional:
   instead of id numbers.
 tar, compression programs, etc, and their necessary shared libraries
  if you want conversions.
+
+No files/directories should be writeable except for those directories
+in which you want to allow anonymous FTP uploads.
 
 ----------------------------------------------
 
@@ -103,9 +106,19 @@ cd dirptr:  allowed because absolute pathname is /home/dancy/dirptr
 
 cd ..:  allowed because absolute pathname is /home/dancy again.
 
+----------------------------------------------
 
+Security notes:
 
-
-
-
-
+Since this FTP server is written in lisp, it should be free of buffer
+overflows.  None of the foreign functions used fill in any
+variable-sized buffers so things should be safe on that front as well.
+One target of attack may be the conversions.  Bugs in conversion
+programs could lead to security compromises.  For example, gzip-1.2.4
+may suffer a buffer overflow if its command line is too long (see
+http://www.securityfocus.com/advisories/3801 ).  Make sure all of your
+conversion programs are up-to-date.  If you're really worried, you can
+set *conversions* to 'nil' to disallow all conversions.
+If you want to audit the security of this FTP server, it is
+recommended that you examine the make-full-path and glob functions
+(and their callers and callees).
