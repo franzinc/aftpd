@@ -1,5 +1,4 @@
 *.fasl
-xstat
 aftpd.sh
 aftpd
 autoloads.out

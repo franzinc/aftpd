@@ -1,15 +1,11 @@
-$Id: BUGS,v 1.6 2001/12/08 20:04:08 dancy Exp $
+$Id: BUGS,v 1.7 2001/12/19 19:36:15 dancy Exp $
 
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
-
-REST doesn't do the right thing for ASCII files.
 
 Doesn't support the README file notice
 
 Need errno information to improve error responses.
 
-Globbing doesn't work the same as it does in a shell.
-
-Need a list of users to not allow ftp logins from.
+May want to support a list of users to not allow ftp logins from.
 
 Doesn't support SITE UTIME t3 20011207021328 20010314175752 20010719170637 UTC

@@ -1,6 +1,36 @@
-;; $Id: getpwnam.cl,v 1.2 2001/12/06 18:18:35 dancy Exp $
+;; $Id: passwd.cl,v 1.1 2001/12/19 19:36:15 dancy Exp $
 
-(in-package :user)
+(defpackage :util.passwd
+  (:use :common-lisp :excl)
+  (:export
+   #:pwent-name
+   #:pwent-passwd
+   #:pwent-uid
+   #:pwent-gid
+   #:pwent-gecos
+   #:pwent-shell
+   #:pwent-dir
+   #:grent-name
+   #:grent-passwd
+   #:grent-gid
+   #:grent-members
+   #:spent-name
+   #:spent-passwd
+   #:spent-last-change
+   #:spent-min
+   #:spent-max
+   #:spent-warn
+   #:spent-inact
+   #:spent-expire
+   #:spent-flag
+   #:get-pwent-by-name
+   #:get-grent-by-name
+   #:get-spent-by-name))
+   
+(in-package :util.passwd)
+
+#-(or linux solaris2)
+(error "Only Linux or Solaris supported.")
 
 (ff:def-foreign-type passwd
     (:struct
@@ -8,6 +38,10 @@
      (pw_passwd (* :char))
      (pw_uid :int)
      (pw_gid :int)
+     #+solaris2
+     (pw_age (* :char))
+     #+solaris2
+     (pw_comment (* :char))
      (pw_gecos (* :char))
      (pw_dir (* :char))
      (pw_shell (* :char))))
@@ -22,6 +56,7 @@
   gecos
   dir
   shell)
+
 
 (ff:def-foreign-type group
     (:struct
@@ -50,7 +85,7 @@
      (sp_warn :int)
      (sp_inact :int)
      (sp_expire :int)
-     (sp_flag :int)))
+     (sp_flag :unsigned-int)))
 
 (defstruct spent
   name

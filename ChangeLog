@@ -1,3 +1,99 @@
+2001-12-19  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl:
+	Added *ftpdataport* parameter.  Defaults to 20 and will likely
+	never be changed by anyone.
+
+	Added *maxusers* parameter.  If set to a number, it indicates the
+	maximum number of clients that can be connected at once.  
+
+	Added *toomanymsg* parameter.  Defaults to /etc/toomany.msg which
+	is a file that will be displayed when someone tries to use the
+	PASS command when *maxusers* has been reached.
+
+	Renamed *anonymous-???-restricted* to *anonymous-???-disabled*.
+
+	Changed conversion list.  No need to call (vector) for vector
+	literals.
+
+	Added summore foreign calls for uid management.
+
+	Added *extra-files* parameter which lists the other source files
+	that go w/ this app.
+
+	Program is now easy to kill with control-C in debug mode.
+
+	Added code to keep track of how many children there are.
+
+	Added parameter *reaptime* to control how often a check is done
+	for an exited child.  Defaults to 10 seconds.  Set to a lower
+	value if you want higher accuracy.
+
+	strerror: If 'errno' is null, return "Unknown error".
+
+	outline: Used Kevin's code for making sure that security problems
+	don't creep in from programming mistakes using outline without a
+	format string.
+
+	Removed with-output-to-client macro.  It was only used in one
+	place and wasn't necessary.
+
+	stderr-reader: Logs to ftp log instead of standard output.
+
+	get-request:  Maximum line length is now 5000 characters.
+	Updated this function to gracefully deal with too-long lines.  The
+	entire line is ignored and a line-too-long error is returned to
+	the client.
+
+	Added macro with-root-privs for doing certain operations that
+	require root privs.  This should be checked for any potential
+	issues.
+	
+	cmd-pass: Added maxusers check.   Changed call to setgid to
+	setegid.  Changed call to setuid to seteuid.  Now we can recover
+	root privs when necessary [and so can anyone who manages to find
+	some exploit to execute arbitrary code].
+
+	dump-msg:  New function to dump a file to the control connection,
+	prefixed by a code.   dump-welcome-msg was removed and the call to
+	it was replaced w/ a call to dump-msg.  The too-many-users file is
+	displayed using this now as well.
+
+	PORT-based FTP data connections now use the local port
+	*ftpdataport* (default, 20).  Some clients required this.  Using
+	port 20 requires root privs.
+
+	Fixed several places where I used 't' as the general case in a
+	handler-case, rather than 'error'.
+		
+	Removed compile-regexp from places that it wasn't necessary. jkf
+	says that there's a compiler macro for regular expressions.
+
+	make-mdtm-string:  No longer uses C library call.  All built in
+	stuff w/ help from Charley.
+
+	glob-single:  Shorter now due to use of enough-namestring.
+
+	make-relative, basename: Unnecessary functions removed.
+
+	ftp-log and xferlog:  Use posix locks to make sure that several
+	clients don't smash updates to the logs.  Also, make sure writing
+	always begins at the end of the log.  
+
+	main: Make sure that ACL 6.1 or later is being used.  
+	Added some command line arguments.  -d to run in debugging mode.
+	-p xxxx to use an alternative FTP port.  -f xxx to specify an
+	alternate config file.  
+
+	top level:  Complain if trying to build on non-linux, non-Solaris
+	platform.
+
+	Moved process group setting stuff into its own function.
+
+	getpwnam.cl: Renamed to passwd.cl
+
+	posix-lock.cl: New
+
 2001-12-11  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl:  Removed dependency on stat.cl.  Changed stuff over to
