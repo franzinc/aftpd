@@ -1,3 +1,23 @@
+2001-12-07  Ahmon Dancy  <dancy@dancy>
+
+	* README: added build instructions and fixed a typo.
+
+	* eol.cl:  Some export changes suggested by jkf.
+
+	* ftp.cl:
+	Added *restricted-users* variable.  Users in this list will be
+	confined to their home directories.   Added code to handle this
+	feature.  
+
+	Changed conversions to use vectors instead of strings.  This is
+	safer.
+
+	store-file-ascii updated to use external format stuff.
+
+	Turned off globbing support for STAT.
+
+	Added :srecord to generate-executable call.
+	
 2001-12-06  Ahmon Dancy  <dancy@dancy>
 
 	* Added support for the telnet codes that sometimes get sent

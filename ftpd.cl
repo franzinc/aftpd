@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.5 2001/12/07 02:21:20 dancy Exp $
+;; $Id: ftpd.cl,v 1.6 2001/12/07 23:13:28 dancy Exp $
 
 (in-package :user)
 
@@ -19,6 +19,7 @@
 (defparameter *default-umask* #o022) 
 (defparameter *anonymous-ftp-names* '("ftp" "anonymous"))
 (defparameter *anonymous-ftp-account* "ftp")
+(defparameter *restricted-users* nil)
 (defparameter *welcome-msg-file* "welcome.msg")
 (defparameter *message-file* ".message")
 (defparameter *quarantine-anonymous-uploads* t)
@@ -30,18 +31,21 @@
 
 (defparameter *debug* nil)
 
-;; Put longest extensions first
+;; Put longest extensions first.
+;; Vectors are used so that the command line cannot be altered
+;; by the user.
 (defparameter *conversions*
-    '((".tar.bz2" . "/bin/tar cjf - ~A")
-      (".tar.gz" . "/bin/tar czf - ~A")
-      (".tar.Z" . "/bin/tar cZf - ~A")
-      (".tar" . "/bin/tar cf - ~A")
-      (".zip" . "/bin/zip -qq -r - ~A")
-      (".bz2" . "/bin/bzip2 -c ~A")
-      (".gz" . "/bin/gzip -9 -c ~A")
-      (".Z" . "/bin/compress -c ~A")))
+    '((".tar.bz2" . #.(vector "/bin/tar" "cjf" "-"))
+      (".tar.gz" . #.(vector "/bin/tar" "czf" "-"))
+      (".tar.Z" . #.(vector "/bin/tar" "cZf" "-"))
+      (".tar" . #.(vector "/bin/tar" "cf" "-"))
+      (".zip" . #.(vector "/bin/zip" "-qq" "-r" "-"))
+      (".bz2" . #.(vector "/bin/bzip2" "-c"))
+      (".gz" . #.(vector "/bin/gzip" "-9" "-c"))
+      (".Z" . #.(vector "/bin/compress" "-c"))))
 
 (defparameter *configfile* "/etc/aftpd.cl")
+
 
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
@@ -88,10 +92,13 @@
   (load "getpwnam.fasl")
   (load "stat.fasl")
   (load "eol.fasl")
+  (require :acldns))
+
+(eval-when (compile load eval)
   ;;; cox recommendation
   (defparameter *extfcrlf* 
-      (find-composed-external-format :e-crlf (crlf-base-ef :latin1)))
-  (require :acldns))
+      (find-composed-external-format :e-crlf (crlf-base-ef :latin1))))
+
 
 ;; System dependent.
 (eval-when (load eval)
@@ -118,6 +125,7 @@
    (rename-from :initform nil :accessor rename-from)
    (message-seen :initform (make-hash-table :test #'equal)
 		 :accessor message-seen)
+   (restricted :initform nil :accessor restricted)
    ))
 
 
@@ -471,6 +479,9 @@
 
       (if (anonymous client)
 	  (anonymous-setup client))
+
+      (if (member (user client) *restricted-users* :test #'string=)
+	  (setf (restricted client) t))
       
       ;; Set up
       (if (not (= 0 (setgid (pwent-gid pwent))))
@@ -493,8 +504,8 @@
 	  (progn
 	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    
-	    ;; Anonymous users have no alternative
-	    (if (anonymous client)
+	    ;; Anonymous/restricted users have no alternative
+	    (if (or (anonymous client) (restricted client))
 		(progn
 		  (outline "421 Local configuration error.")
 		  (return :quit)))
@@ -549,20 +560,6 @@
 (defun cmd-noop (client cmdtail)
   (declare (ignore client cmdtail))
   (outline "200 NOOP command successful."))
-
-(defun cleanup-data-connection (client)
-  (if (dataport-open client)
-      (progn
-	(ignore-errors (close (dataport-sock client)))
-	(setf (dataport-sock client) nil)
-	(setf (dataport-open client) nil)))
-  (if (pasv client)
-      (progn
-	(ignore-errors (close (pasv client)))
-	(setf (pasv client) nil)))
-  (setf (dataport-addr client) nil)
-  (setf (dataport-port client) nil))
-
 
 (defun cmd-port (client cmdtail)
   (block nil
@@ -709,6 +706,20 @@
 		(ignore-errors (close newsock)))
 	    (return newsock))))))
     
+(defun cleanup-data-connection (client)
+  (if (dataport-open client)
+      (progn
+	(ignore-errors (close (dataport-sock client)))
+	(setf (dataport-sock client) nil)
+	(setf (dataport-open client) nil)))
+  (if (pasv client)
+      (progn
+	(ignore-errors (close (pasv client)))
+	(setf (pasv client) nil)))
+  (setf (dataport-addr client) nil)
+  (setf (dataport-port client) nil))
+
+
 (defun establish-data-connection (client)
   (block nil
     (setf (dataport-sock client)
@@ -749,13 +760,18 @@
 
 (defun cmd-retr (client file)
   (block nil
-    (if (null (data-connection-prepared-p client))
-	(return (outline "452 No data connection has been prepared.")))
-    
     (let ((fullpath (make-full-path (pwd client) file)))
+
+      (if (and (restricted client)
+	       (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied." file)))
+
+      (if (null (data-connection-prepared-p client))
+	  (return (outline "452 No data connection has been prepared.")))
+      
       (if (not (probe-file fullpath))
 	  (multiple-value-bind (conv realname)
-	      (conversion-match fullpath)
+	      (conversion-match file)
 	    (if conv
 		(return (start-conversion client conv realname)))
 	    (return (outline "550 ~A: No such file or directory." file))))
@@ -791,7 +807,7 @@
 	       (string= (subseq path (- pathlen extlen)) ext))
 	  (return (values (cdr extcons) (subseq path 0 (- pathlen extlen))))))))
 
-(defun start-conversion (client conversion file)
+(defun start-conversion (client conversionvec file)
   (block nil
     (if (not (eq (client-type client) :image))
 	(return 
@@ -799,10 +815,12 @@
     (if (not (= 0 (client-restart client)))
 	(return
 	  (outline "550 REST not allowed with conversions.")))
-    (let* ((cmdstring (format nil conversion file))
-	   (cmdlist (delimited-string-to-list cmdstring #\space))
-	   (cmdvec (coerce (cons (first cmdlist) cmdlist) 'vector)))
+    (let ((cmdvec (concatenate 'vector 
+		    (vector (aref conversionvec 0)) ;; duplicate first entry
+		    conversionvec
+		    (vector file))))
       (with-external-command (stream cmdvec)
+	;;(format t "cmdvec is ~S~%" cmdvec)
 	(transmit-stream client stream (aref cmdvec 0))))))
 
 (defun transmit-stream (client stream name) 
@@ -886,47 +904,51 @@
 
 (defun store-common (client file if-exists)
   (block nil
-    (if (not (= 0 (client-restart client)))
-	(return (outline "452 REST > 0 not supported with STOR.")))
-    
-    (if (null (data-connection-prepared-p client))
-	(return (outline "452 No data connection has been prepared.")))
-    
-    (with-umask ((if (and (anonymous client) *quarantine-anonymous-uploads*)
-		     #o777 (client-umask client)))
-      (ftp-with-open-file 
-       (f errno (make-full-path (pwd client) file)
-	  :direction :output
-	  :if-exists if-exists
-	  :if-does-not-exist :create)
-       (if (null f)
-	   (return (outline "550 ~A: ~A" file (strerror errno))))
-       
-       (if (null (establish-data-connection client))
-	   (return))
-       
-       (outline "150 Opening ~A mode data connection for ~A."
-		(if (eq (client-type client) :ascii-nonprint)
-		    "ASCII" "BINARY")
-		file)
-       
-       (if (handler-case (store-file client f)
-	     (socket-error (c)
-	       (if (or (eq (stream-error-identifier c) :read-timeout)
-		       (eq (stream-error-identifier c) :write-timeout))
-		   (outline "426 Data transfer timeout.")
-		 (outline "426 Data connection: Broken pipe."))
-	       nil)
-	     (t (c)
-	       (let ((*print-pretty* nil))
-		 (outline "426 Error: ~A"
-			  (substitute #\space #\newline (format nil "~A" c))))
-	       nil))
-	   (outline "226 Transfer complete."))
-
-       (cleanup-data-connection client)))))
-       
-
+    (let ((fullpath (make-full-path (pwd client) file)))
+      
+      (if (not (= 0 (client-restart client)))
+	  (return (outline "452 REST > 0 not supported with STOR.")))
+      
+      (if (and (restricted client)
+	       (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied." file)))
+      
+      (if (null (data-connection-prepared-p client))
+	  (return (outline "452 No data connection has been prepared.")))
+      
+      (with-umask ((if (and (anonymous client) *quarantine-anonymous-uploads*)
+		       #o777 (client-umask client)))
+	(ftp-with-open-file 
+	 (f errno fullpath
+	    :direction :output
+	    :if-exists if-exists
+	    :if-does-not-exist :create)
+	 (if (null f)
+	     (return (outline "550 ~A: ~A" file (strerror errno))))
+	 
+	 (if (null (establish-data-connection client))
+	     (return))
+	 
+	 (outline "150 Opening ~A mode data connection for ~A."
+		  (if (eq (client-type client) :ascii-nonprint)
+		      "ASCII" "BINARY")
+		  file)
+	 
+	 (if (handler-case (store-file client f)
+	       (socket-error (c)
+		 (if (or (eq (stream-error-identifier c) :read-timeout)
+			 (eq (stream-error-identifier c) :write-timeout))
+		     (outline "426 Data transfer timeout.")
+		   (outline "426 Data connection: Broken pipe."))
+		 nil)
+	       (t (c)
+		 (let ((*print-pretty* nil))
+		   (outline "426 Error: ~A"
+			    (substitute #\space #\newline (format nil "~A" c))))
+		 nil))
+	     (outline "226 Transfer complete."))
+	 
+	 (cleanup-data-connection client))))))
 
 (defun store-file (client out)
   (if (eq (client-type client) :ascii-nonprint)
@@ -935,20 +957,33 @@
   t)
 
 (defun store-file-ascii (client out)
-  (let ((in (dataport-sock client))
-	lastchar
-	char)
-    (while (setf char (read-char in nil nil))
-	   (if (and lastchar (char= lastchar #\return) (char= char #\newline))
-	       (progn
-		 (write-char #\newline out)
-		 (setf lastchar nil))
-	     (progn
-	       (if lastchar
-		   (write-char lastchar out))
-	       (setf lastchar char))))
-    (if lastchar
-	(write-char lastchar out))))
+  (let ((inbuffer (make-array 32768 :element-type '(unsigned-byte 8)))
+	(outbuffer (make-string 32768))
+	(sock (dataport-sock client))
+	(startpos 0)
+	got)
+    (while (> (setf got (read-vector inbuffer sock :start startpos)) startpos)
+	   (multiple-value-bind (string outbytes usedbytes)
+	       (octets-to-string inbuffer 
+				 :string outbuffer 
+				 :external-format *extfcrlf*
+				 :end got
+				 :truncate t)
+	     (declare (ignore string))
+	     (write-string outbuffer out :end outbytes)
+	     (setf startpos (- got usedbytes))
+	     ;; move remaining bytes to the beginning of the vector
+	     ;; (This should only be 0 or 1 bytes)
+	     (dotimes (i startpos)
+	       (setf (aref inbuffer i) (aref inbuffer (+ i usedbytes))))))
+    ;; flush any trailing data
+    (if startpos
+	(write-string (octets-to-string inbuffer 
+					:string outbuffer
+					:external-format *extfcrlf*
+					:end startpos
+					:truncate nil)
+		      out :end startpos))))
 
 (defun store-file-binary (client out)
   (let ((in (dataport-sock client))
@@ -976,6 +1011,10 @@
 	  (return (outline "550 Unknown user name after ~~")))
       
       (setf newpwd (make-full-path (pwd client) newpwd))
+
+      (if (and (restricted client) 
+	       (out-of-bounds-p client newpwd))
+	  (return (outline "550 ~A: Permission denied." cmdtail)))
       
       (if (null (ftp-chdir newpwd))
 	  (return (outline "550 ~A: Command failed." cmdtail)))
@@ -1037,36 +1076,72 @@
 	  "/"
 	(list-to-delimited-string (reverse pwd) #\/)))))
 
+;; /home/dir/ is within /home/dir.
+;; 'parent' should not have a trailing slash.
+;; both 'dir' and 'parent' should be absolute names
+(defun within-dir-p (dir parent)
+  (block nil
+    (if (string= parent "/")
+	(return t)) ;; everything is within the root directory
+    (if (string= dir "/")
+	(return nil)) ;; root dir isn't within anything else
+    ;; strip trailing slash if there is one
+    (setf dir (replace-regexp dir "^\\(.*\\)/$" "\\1"))
+    (let ((parentlen (length parent))
+	  (dirlen (length dir)))
+      (if (< dirlen parentlen)
+	  (return nil))
+      (string= parent (subseq dir 0 parentlen)))))
+	  
+(defun out-of-bounds-p (client path)
+  (not (within-dir-p path (pwent-dir (pwent client)))))
+  
+
+;; attempts to glob switches as well.  That shouldn't be a big deal.
 (defun cmd-list (client path)
   (block nil
-    (if (null (data-connection-prepared-p client))
-	(return (outline "452 No data connection has been prepared.")))
+    (let ((options (glob path (pwd client))))
+      (if (and (restricted client)
+	       (some (lambda (opt) 
+		       (out-of-bounds-p 
+			client 
+			(make-full-path (pwd client) opt))) options))
+	  (return
+	    (outline "550 Permission denied.")))
+      
+      (if (null (data-connection-prepared-p client))
+	  (return (outline "452 No data connection has been prepared.")))
     
-    (if (null (establish-data-connection client))
-	(return))
+      (if (null (establish-data-connection client))
+	  (return))
     
-    (outline "150 Opening ASCII mode data connection for /bin/ls.")
-
-    (let ((*outlinestream* (dataport-sock client)))
-      (with-external-command (stream 
-			      (concatenate 'vector
-				#.(vector "/bin/ls" "/bin/ls" "-la")
-				(glob path (pwd client))))
-	(let (line)
-	  (while (setf line (read-line stream nil nil))
-		 (outline "~A" line)))))
+      (outline "150 Opening ASCII mode data connection for /bin/ls.")
     
-    (cleanup-data-connection client)
-    (outline "226 Transfer complete.")))
+      (let ((*outlinestream* (dataport-sock client)))
+	(with-external-command (stream 
+				(concatenate 'vector
+				  #.(vector "/bin/ls" "/bin/ls" "-la")
+				  options))
+	  (let (line)
+	    (while (setf line (read-line stream nil nil))
+		   (outline "~A" line)))))
+    
+      (cleanup-data-connection client)
+      (outline "226 Transfer complete."))))
 
 (defun cmd-nlst (client path)
   (block nil
+    (if (and (restricted client) 
+	     (not (string= path ""))
+	     (out-of-bounds-p client (make-full-path (pwd client) path)))
+	(return (outline "550 ~A: Permission denied." path)))
+    
     (if (null (data-connection-prepared-p client))
 	(return (outline "452 No data connection has been prepared.")))
     
     (if (null (establish-data-connection client))
 	(return))
-    
+
     (outline "150 Opening ASCII mode data connection for file list.")
 
     (let ((*outlinestream* (dataport-sock client)))
@@ -1106,13 +1181,18 @@
 		 (dataport-port client))))
     (outline "211 End of status")))
 
+;; XXX - Doesn't do globbing.
 (defun cmd-stat-file (client file)
   (block nil
+    (if (and (restricted client)
+	     (out-of-bounds-p client (make-full-path (pwd client) file)))
+	(return (outline "550 ~A: Permission denied." file)))
+    
     (outline "213-status of ~A:" file)
     (with-external-command (stream 
 			    (concatenate 'vector 
 			      #.(vector "/bin/ls" "/bin/ls" "-la")
-			      (glob file (pwd client))))
+			      (vector file)))
       (let (line)
 	(while (setf line (read-line stream nil nil))
 	       (outline "~A" line))))
@@ -1123,7 +1203,10 @@
 (defun cmd-dele (client file)
   (block nil
     (let ((fullpath (make-full-path (pwd client) file)))
-    
+
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
       
@@ -1139,6 +1222,9 @@
 (defun cmd-rmd (client file)
   (block nil
     (let ((fullpath (make-full-path (pwd client) file)))
+
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
       
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
@@ -1155,6 +1241,9 @@
 (defun cmd-mkd (client newdir)
   (block nil
     (let ((fullpath (make-full-path (pwd client) newdir)))
+      
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
       
       (if (and (anonymous client) *anonymous-mkdir-restricted*)
 	  (return (outline "553 MKD Permission denied.")))
@@ -1202,8 +1291,13 @@
 
 (defun cmd-mdtm (client file)
   (block nil
-    (let (stat)
-      (if (not (probe-file (make-full-path (pwd client) file)))
+    (let ((fullpath (make-full-path (pwd client) file))
+	  stat)
+      
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
+      (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
       
       (setf stat (ignore-errors (stat file)))
@@ -1292,9 +1386,13 @@
     
 (defun cmd-size (client file)
   (block nil
-    (let (stat)
+    (let ((fullpath (make-full-path (pwd client) file))
+	  stat)
       
-      (if (not (probe-file (make-full-path (pwd client) file)))
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
+      (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
       
       (setf stat (ignore-errors (stat file)))
@@ -1309,28 +1407,37 @@
 
 (defun cmd-rnfr (client from)
   (block nil
-
-    (if (not (probe-file (make-full-path (pwd client) from)))
-	(return (outline "550 ~A: No such file or directory." from)))
-    
-    (setf (rename-from client) from)
-    (outline "350 File exists, ready for destination name")))
+    (let ((fullpath (make-full-path (pwd client) from)))
+      
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
+      (if (not (probe-file fullpath))
+	  (return (outline "550 ~A: No such file or directory." from)))
+      
+      (setf (rename-from client) from)
+      (outline "350 File exists, ready for destination name"))))
 
 ;; Does the actual work.
 ;; XXX -- need errno info for proper error message.
 (defun cmd-rnto (client to)
   (block nil
-    (if (null (rename-from client))
-	(return (outline "503 Bad sequence of commands.")))
-    
-    (if (and (anonymous client) *anonymous-rename-restricted*)
-	(return (outline "553 Rename permission denied.")))
-    
-    (if (not (= 0 (rename (rename-from client) to)))
-	(outline "550 rename: Operation failed.")
-      (outline "250 RNTO command successful."))
-    
-    (setf (rename-from client) nil)))
+    (let ((fullpath (make-full-path (pwd client) to)))
+      
+      (if (null (rename-from client))
+	  (return (outline "503 Bad sequence of commands.")))
+      
+      (if (and (anonymous client) *anonymous-rename-restricted*)
+	  (return (outline "553 Rename permission denied.")))
+      
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
+      (if (not (= 0 (rename (rename-from client) to)))
+	  (outline "550 rename: Operation failed.")
+	(outline "250 RNTO command successful."))
+      
+      (setf (rename-from client) nil))))
 
 (defun cmd-site (client cmdtail)
   (block nil
@@ -1348,13 +1455,17 @@
   (block nil
     (let* ((spacepos (position #\space cmdtail))
 	   (mode (if spacepos (subseq cmdtail 0 spacepos)))
-	   (file (if spacepos (subseq cmdtail (1+ spacepos)))))
+	   (file (if spacepos (subseq cmdtail (1+ spacepos))))
+	   (fullpath (make-full-path (pwd client) file)))
       (if (null spacepos)
 	  (return
 	    (outline "500 'SITE CHMOD ~A': Command not understood."
 		     cmdtail)))
       
-      (if (not (probe-file (make-full-path (pwd client) file)))
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      
+      (if (not (probe-file fullpath))
 	  (return
 	    (outline "550 ~A: No such file or directory." file)))
       
@@ -1415,7 +1526,10 @@
 ;;;;;;;;;
 (defun build ()
   (compile-file-if-needed "ftpd.cl")
-  (generate-executable "aftpd" '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl")))
+  (generate-executable 
+   "aftpd" 
+   '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl"
+     :srecord)))
 
 (defun main (&rest args)
   (if (probe-file *configfile*)

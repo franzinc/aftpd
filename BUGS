@@ -1,8 +1,8 @@
-$Id: BUGS,v 1.4 2001/12/07 02:21:20 dancy Exp $
+$Id: BUGS,v 1.5 2001/12/07 23:13:28 dancy Exp $
 
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
 
-REST may not do the right thing for ASCII files.
+REST doesn't do the right thing for ASCII files.
 
 Doesn't support the README file notice
 
@@ -12,7 +12,6 @@ Globbing doesn't work the same as it does in a shell.
 
 Need a list of users to not allow ftp logins from.
 
-Doesn't support SITE UTIME t3 20011207021328 2\0010314175752 20010719170637 UTC
+Doesn't support SITE UTIME t3 20011207021328 20010314175752 20010719170637 UTC
 
 store-file-ascii is still low-tech.
-

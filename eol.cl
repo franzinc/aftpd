@@ -1,9 +1,9 @@
 ;; Code stolen from Charley Cox.
 
+(defpackage :excl (:export #:find-composed-external-format))
 (in-package :excl)
 
 (eval-when (compile load eval)
-  (export 'find-composed-external-format)
   (require :efmacs)
   (require :iodefs))
 
