@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.9 2001/12/10 18:40:49 dancy Exp $
+;; $Id: ftpd.cl,v 1.10 2001/12/11 16:47:57 dancy Exp $
 
 (in-package :user)
 
@@ -438,7 +438,8 @@
 
     (setf (anonymous client) nil)
     
-    (if (member user *anonymous-ftp-names* :test #'equalp)
+    (if (and (member user *anonymous-ftp-names* :test #'equalp)
+	     (lookup-account *anonymous-ftp-account*))
 	(progn
 	  (setf user *anonymous-ftp-account*)
 	  (setf (anonymous client) t)))

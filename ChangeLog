@@ -1,3 +1,8 @@
+2001-12-11  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl:  Make sure that the anonymous ftp account actually
+	exists before allowing an anonymous login.
+
 2001-12-10  Ahmon Dancy  <dancy@dancy>
 
 	* Added *xferlog* parameter which specifies the location of the
