@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.9 2002/09/17 17:13:33 layer Exp $
+# $Id: makefile,v 1.10 2002/09/17 21:52:10 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -17,6 +17,7 @@ default: FORCE
 	echo '(load "ftpd.fasl")' >> build.tmp
 	echo '(build)' >> build.tmp
 	mlisp-6.2 -batch -q -L build.tmp -kill
+	cp -p makefile aftpd
 	cp -p readme.txt aftpd
 	cp -p binary-license.txt aftpd
 
@@ -25,8 +26,9 @@ version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 linux solaris: clean default
 	gtar zcf aftpd-$@-$(version).tgz aftpd
 
-SOURCE_FILES = ChangeLog readme.txt binary-license.txt config.cl eol.cl \
-	ftpd.cl ipaddr.cl makefile passwd.cl posix-lock.cl rfc0959.txt \
+SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \
+	config.cl eol.cl ftpd.cl ipaddr.cl makefile passwd.cl \
+	posix-lock.cl rfc0959.txt \
 	system-constants.c S99aftpd aftpd.init
 
 src: FORCE
