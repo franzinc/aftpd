@@ -1,4 +1,4 @@
-aftpd-*.tgz
+aftpd-*
 *.fasl
 aftpd
 aftpd.sh
