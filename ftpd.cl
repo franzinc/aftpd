@@ -5,7 +5,7 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.24 2002/09/16 21:31:24 layer Exp $
+;; $Id: ftpd.cl,v 1.25 2002/09/18 20:45:50 dancy Exp $
 
 (in-package :user)
 
@@ -788,7 +788,7 @@
   (declare (ignore client cmdtail))
   (outline "202 ALLO command ignored."))
 
-;; XXX -- pretty useless I don't support asychronous requests.
+;; XXX -- pretty useless since asychronous requests aren't supported.
 (defun cmd-abor (client cmdtail)
   (declare (ignore cmdtail))
   (cleanup-data-connection client)
