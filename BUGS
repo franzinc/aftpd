@@ -1,0 +1,9 @@
+Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
+
+REST may not do the right thing for ASCII files.
+
+Doesn't support the README file notice
+
+Need to make a logging function.
+
+Need errno information to improve error responses.

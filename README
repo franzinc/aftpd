@@ -1,0 +1,15 @@
+Anonymous ftp setup:
+
+*anonymous-ftp-acocunt* must exist in /etc/passwd and it's home
+directory must exist.  The home directory should be set up for a
+chroot environment.  Required files:
+
+/dev/null (Linux: mknod null c 1 3; chmod a+w null)
+/bin/ls Ideally statically linked.  If not, then the necessary shared
+        libraries are necessary in /lib or /usr/lib
+
+Optional:
+/welcome.msg  Displayed after login
+/etc/passwd and /etc/group if you want 'ls' to display names instead
+  of numbers.
+tar, compression programs, etc if you want conversions.
