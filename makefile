@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.19 2002/11/12 19:10:05 layer Exp $
+# $Id: makefile,v 1.20 2004/01/14 20:04:13 dancy Exp $
 #
 # This makefile requires GNU make.
 
@@ -19,7 +19,7 @@ endif
 
 INSTALLDIR=/usr/local/sbin
 
-version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
+version = $(shell grep defvar..ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 platform = $(shell uname -s)
 
 SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \

@@ -1,6 +1,29 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2004-01-14  Ahmon Dancy  <dancy@dancy>
+1.0.23
+	
+	* ftpd.cl:
+
+	spawn-client:  Close the client socket with :abort t
+
+	ftpd-main: close and reopen logfiles for each connection to allow
+	for better log rotation.  Also, when closing the control
+	connection due to unexpected errors, don't try to report the error
+	on the control connection.. since it's the control channel that
+	probably caused the unexpected error in the first place.  Just log
+	the error and close down.  
+
+	main: removed obsolete "I" in call to
+	with-command-line-arguments.  Commented out prior change of
+	setting *print-hostname-in-stream* to nil.  I guess it made no
+	difference.   Also, log the program version in the ftp log when
+	starting up.
+
+	makefile:  Updated regular expression for locating the version
+	variable.
+	
 2002-12-19  Ahmon Dancy  <dancy@dancy>
 1.0.22
 	

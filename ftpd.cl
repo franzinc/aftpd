@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.34 2002/12/19 18:16:34 dancy Exp $
+;; $Id: ftpd.cl,v 1.35 2004/01/14 20:04:13 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.22")
+(defvar *ftpd-version* "1.0.23")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -186,7 +186,7 @@
     (add-pid)
     (unwind-protect
 	(ftpd-main sock)
-      (ignore-errors (close sock))))
+      (ignore-errors (close sock :abort t))))
   ;; child never gets here.  Parent does.
   ;; main ftp server doesn't need this
   (close sock))
@@ -324,6 +324,9 @@
 
 (defun ftpd-main (sock)
   (load-config-file)
+  ;; Freshen log stream (to allow for log rotation).
+  (close-logs)
+  (open-logs)
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
 	    (socket:remote-host sock)))
@@ -349,10 +352,7 @@
 		(if (eq (dispatch-cmd client req) :quit)
 		    (return (cleanup client "QUIT")))))))
       (error (c)
-	(ignore-errors ;; in case the connection disappeared.
-	 (outline "421 Error: ~A -- closing control connection."
-		  (substitute #\space #\newline (format nil "~A" c))))
-	(ftp-log "Error: ~A~%" c))))
+	(ignore-errors (ftp-log "Error: ~A~%" c)))))
   (close-logs))
   
 (defun dispatch-cmd (client cmdstring)
@@ -916,7 +916,7 @@
   (let ((buffer (make-array 65536 :element-type '(unsigned-byte 8)))
 	(sock (dataport-sock client))
 	got)
-    (while (not (= 0 (setf got (read-vector buffer f))))
+    (while (/= 0 (setf got (read-vector buffer f)))
 	   (write-complete-vector buffer got sock)))
   t)
 
@@ -1679,7 +1679,7 @@ Note: -p and -f override any setting in the config file.~%~%"
 
 (defun main (&rest args)
   (system:with-command-line-arguments
-      ("I:df:p:" image debug-mode configfile ftpport)
+      ("df:p:" debug-mode configfile ftpport)
       (rest :usage *usage*)
     (declare (ignore image))
     (when configfile
@@ -1693,7 +1693,7 @@ Note: -p and -f override any setting in the config file.~%~%"
     (when ftpport (setq *ftpport* ftpport))
     (when rest (usage))
 
-    (setf socket:*print-hostname-in-stream* nil)
+    ;;(setf socket:*print-hostname-in-stream* nil)
     
     (open-logs)
 
@@ -1707,7 +1707,7 @@ Note: -p and -f override any setting in the config file.~%~%"
 	  (detach-from-terminal :output-stream *logstream*
 				:error-output-stream *logstream*))))
 
-    (ftp-log "FTP server started.~%")
+    (ftp-log "Allegro FTPd v~A started.~%" *ftpd-version*)
     (standalone-main)))
 
 (defun load-config-file ()
@@ -1729,3 +1729,5 @@ Note: -p and -f override any setting in the config file.~%~%"
     (setq files (cons "config.cl" files))
     (compile-file-if-needed "ftpd.cl")
     (generate-executable "aftpd" files)))
+
+
