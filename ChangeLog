@@ -1,6 +1,12 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2004-01-14  root  <root@gills.dancysoft.com>
+<no version change>
+	
+	* makefile: Updated mlisp variable for use offsite.  Fixed install
+	rule.
+	
 2004-01-14  Ahmon Dancy  <dancy@dancy>
 1.0.23
 	

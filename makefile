@@ -5,14 +5,18 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.20 2004/01/14 20:04:13 dancy Exp $
+# $Id: makefile,v 1.21 2004/01/14 20:41:48 dancy Exp $
 #
 # This makefile requires GNU make.
 
 platform = $(shell uname -s)
 
 ifeq ($(platform),Linux)
-mlisp = /fi/cl/6.2/bin/redhat6/mlisp
+mlisp = $(shell if test -x /storage1/acl/mlisp; then \
+	           echo /storage1/acl/mlisp; \
+                else \
+                   echo /fi/cl/6.2/bin/redhat6/mlisp; \
+                fi)
 else
 mlisp = /fi/cl/6.2/bin/solaris/mlisp
 endif
@@ -63,9 +67,9 @@ install-common: FORCE
 	rm -fr $(INSTALLDIR)/aftpd
 	mkdir -p $(INSTALLDIR)
 	cp -pr aftpd $(INSTALLDIR)
-	cp -p readme.txt $(INSTALLDIR)
-	cp -p config.cl $(INSTALLDIR)
-	cp -p binary-license.txt $(INSTALLDIR)
+	cp -p readme.txt $(INSTALLDIR)/aftpd
+	cp -p config.cl $(INSTALLDIR)/aftpd
+	cp -p binary-license.txt $(INSTALLDIR)/aftpd
 
 ifeq ($(platform),Linux)
 install: install-common
