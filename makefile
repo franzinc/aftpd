@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.15 2002/09/18 18:34:10 layer Exp $
+# $Id: makefile,v 1.16 2002/09/30 19:57:24 dancy Exp $
 #
 # This makefile requires GNU make.
 
@@ -49,7 +49,7 @@ src: FORCE
 	rm -fr aftpd-$(version)-src
 
 clean: FORCE
-	rm -fr aftpd *.fasl autoloads.out
+	rm -fr aftpd *.fasl autoloads.out build.tmp
 
 install-common: FORCE
 	rm -fr $(INSTALLDIR)/aftpd

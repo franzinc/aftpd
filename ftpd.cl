@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.26 2002/09/23 22:58:56 layer Exp $
+;; $Id: ftpd.cl,v 1.27 2002/09/30 19:57:24 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.15")
+(defvar *ftpd-version* "1.0.16")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -59,6 +59,7 @@
 (ff:def-foreign-call (unix-close "close") () :strings-convert nil
 		     :returning :int)
 (ff:def-foreign-call ioctl () :strings-convert t :returning :int)
+(ff:def-foreign-call dup2 () :strings-convert nil :returning :int)
 
 ;; add to a unix time to get a universal time.
 ;; subtract from a universal time to get a unix time.
@@ -390,7 +391,6 @@
 
 (defun ftpd-main (sock)
   (load-config-file)
-  (open-logs)
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
 	    (socket:remote-host sock)))
@@ -518,13 +518,14 @@
 
 (defun cmd-pass (client pass)
   (block nil
-    (let ((pwent (pwent client)))
+    (let ((pwent (pwent client))
+	  (numclients (probe-pids-file)))
       (if (logged-in client)
 	  (return (outline "530 Already logged in.")))
       (if (null (user client))
 	  (return (outline "503 Login with USER first.")))
 
-      (if* (and *maxusers* (> (probe-pids-file) *maxusers*))
+      (if* (and *maxusers* (> numclients *maxusers*))
 	 then
 	      (dump-msg client "530" *toomanymsg*)
 	      (outline "530 Connection limit exceeded.")
@@ -1678,20 +1679,20 @@
     (let ((ftpport (get-opt "-p" args :param t :numeric t)))
       (if ftpport
 	  (setf *ftpport* ftpport)))
-    
+
+    (open-logs)
+
     (if (not *debug*)
-	(let ((pid (fork)))
-	  (cond
-	   ((< pid 0)
-	    (error "Ack!! fork failed!"))
-	   (( = pid 0)
-	    ;; child
+	(with-fork pid
+	  ;; parent form
+	  (return 0)
+	  ;; child form
+	  (progn
 	    (ftp-chdir "/")
-	    (disassociate))
-	    (t
-	     ;; parent
-	     (return 0)))))
-      (standalone-main)))
+	    (disassociate))))
+    
+    (ftp-log "FTP server started.~%")
+    (standalone-main)))
 
 (defun get-opt (switch args &key param numeric)
   (block nil
@@ -1745,10 +1746,13 @@
   (with-unix-open (fd "/dev/tty" O_RDWR)
    (if (>= fd 0)
        (ioctl fd TIOCNOTTY 0)))
-  (dotimes (i 3)
-    (unix-close i)
-    (if (not (= i (unix-open "/dev/null" O_RDWR 0)))
-	(error "Got unexpected fd"))))
+  
+  (with-unix-open (nullfd "/dev/null" O_RDWR)
+    (let ((diagfd (if *logstream* (stream-output-fn *logstream*) nullfd)))
+      (dup2 nullfd 0) ;; stdin is now /dev/null
+      (dup2 diagfd 1) ;; stdout and stderr use either the logfile
+      (dup2 diagfd 2)))) ;; (if it's open) or /dev/null
+
 
 ;;; setpgrp always succeeds in solaris.
 (defun set-process-group ()
@@ -1782,3 +1786,4 @@
     (generate-executable 
      "aftpd" 
      files)))
+

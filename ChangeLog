@@ -1,6 +1,28 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-09-30  Ahmon Dancy  <dancy@dancy>
+
+	* inc'd version number.
+
+	Call probe-pids-file during PASS cmd regardless of *maxusers*
+	variable.  This will keep the size of the file in check.
+
+	Now open-logs in main function, before forking.  
+
+	Uses with-fork macro in main now.
+
+	Logs a message "FTP server started" now.
+
+	disassociate function has been changed quite a bit.  Instead of
+	making stdin, stdout, and stderr all use /dev/null, just stdin
+	uses /dev/null.  stdout and stderr now use *logstream*'s file
+	descriptor.  This will allow for catching any diagnostic messages
+	that would have otherwise been dropped (like if the server socket
+	port is already in use by another ftp process).  
+
+	makefile:  added build.tmp to the clean rule.
+	
 2002-09-23  Kevin Layer  <layer@crikey>
 1.0.15
 
