@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.13 2002/09/17 22:37:13 layer Exp $
+# $Id: makefile,v 1.14 2002/09/17 22:38:06 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -24,6 +24,7 @@ default: FORCE
 	echo '(load "ftpd.fasl")' >> build.tmp
 	echo '(build)' >> build.tmp
 	mlisp-6.2 -batch -q -L build.tmp -kill
+	rm -fr aftpd-$(version)
 	mkdir aftpd-$(version)
 	cp -p makefile aftpd-$(version)
 	cp -p S99aftpd aftpd-$(version)
