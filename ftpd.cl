@@ -1,10 +1,12 @@
-;; $Id: ftpd.cl,v 1.16 2002/01/08 01:06:16 dancy Exp $
+;; $Id: ftpd.cl,v 1.17 2002/01/18 23:31:04 dancy Exp $
 
 (in-package :user)
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
 
+;; Location of the configuration files (which one can use to 
+;; override the rest of these parameters).
 (defparameter *configfile* "/etc/aftpd.cl")
 
 (defparameter *logfile* "/var/log/ftp")
@@ -13,9 +15,22 @@
 (defparameter *ftpport* 21)
 (defparameter *ftpdataport* 20)
 
-(defparameter *maxusers* nil) ;; unlimited
+;; The number of ftp connections is limited to *maxusers*.  If *maxusers*
+;; is 'nil' (the default), then there is no limit.
+(defparameter *maxusers* nil) 
+
+;; *toomanymsg* specifes the path to a text file to be transmitted
+;; along with the usual "Connection limit exceeded" message.
+;; If this is 'nil' or the file doesn't exist, no additional message
+;; is transmitted.
 (defparameter *toomanymsg* "/etc/toomany.msg")
+
+;; Location of file used to keep track of connection count
 (defparameter *pidsfile* "/var/run/ftp.pids")
+
+;; The initial connection message.  Some might want to change this for
+;; security reasons.
+(defparameter *banner* "Welcome to Allegro FTP")
 
 ;; Control channel timeout.  default -- 5 minutes
 (defparameter *idletimeout* (* 5 60))
@@ -26,32 +41,83 @@
 ;; Maximum time to wait for PASV or PORT connections to complete.
 (defparameter *connecttimeout* 60)
 
+;; How long to wait before responding to an invalid password. 
 (defparameter *badpwdelay* 5)
+
+;; How many invalid passwords before we disconnect suddenly.
 (defparameter *max-password-attempts* 2)
+
+;; The range of ports used for PASV FTP requests.  You'll either want
+;; to change or override these, or update your firewall settings to
+;; allow incoming connections to these ports.
 (defparameter *pasvrange* '(35000 . 39999))
+
+;; If you only want to listen on a particular network interface, put
+;; it's IP address here (e.g. "192.132.95.151").  If 'nil', all 
+;; available interfaces will be used.
 (defparameter *interface* nil) ;; nil means all
+
 (defparameter *default-umask* #o022) 
+
+;; This is the list of login names that are treated as anonymous FTP
+;; users.  This parameter must always be a list, even if there is only
+;; one login name that you want to treat as anonymous.  The list may
+;; be empty if you don't want any login names to be anonymous.
 (defparameter *anonymous-ftp-names* '("ftp" "anonymous"))
+
+;; All *anonymous-ftp-names* will be mapped to this single 
+;; *anonymous-ftp-account name.  This account must exist in /etc/passwd
+;; and must have a proper home directory (see the README file).
 (defparameter *anonymous-ftp-account* "ftp")
+
+;; *restricted-users* is a list of users who will be confined to their
+;; home directories (and deeper) once they successfully login in.
+;; Don't overestimate the security of this feature.  See the README file
+;; for details.
+
+;; If this parameter is 'nil', no users are restricted.  
+
+;; If this parameter is 't', then all users are restricted except for
+;; those listed in *unrestricted-users*.
 (defparameter *restricted-users* nil)
+
+;; If *restricted-users* is 't', this is the list of users who are excluded
+;; from restriction.
 (defparameter *unrestricted-users* nil)
+
+;; If this file exists in the home directory of a user when logging it,
+;; it is transmitted.
 (defparameter *welcome-msg-file* "welcome.msg")
+
+;; If the file exists in any directory a user changes to, it is transmitted.
+;; This only happens once per directory for a given connection.
 (defparameter *message-file* ".message")
+
+;; If *quarantine-anonymous-uplodas* is non-nil, then all uploads by
+;; anonymous accounts will be quarantined.  This means that they will
+;; have their mode bits set to 000 (no read, no write, no execute, by
+;; anyone, including the owner).  This help prevent your FTP server
+;; from unwittingly becoming a warez site.   Keep in mind that this option
+;; does not prevent uploads.  It just prevents people from downloading
+;; the uploaded files until you change the mode bits on the file.
+
 (defparameter *quarantine-anonymous-uploads* t)
-;;; If *quarantine-anonymous-uploads* is 't', then *anonymous-chmod-disabled* should
-;;; definitely be 't'.
+
+;; These options control various restrictions on anonymous users. 
+;; IMPORTANT:  If *quarantined-anonymous-uploads* is non-nil, then
+;; *anonymous-chmod-disabled* should be non-nil as well, otherwise 
+;; anonymous users will be able to change the mode bits on their
+;; uploaded files themselves.
+
 (defparameter *anonymous-chmod-disabled* t) 
 (defparameter *anonymous-rename-disabled* t)
 (defparameter *anonymous-mkdir-disabled* t)
 (defparameter *anonymous-rmdir-disabled* t)
 (defparameter *anonymous-delete-disabled* t)
 
-
-(defparameter *debug* nil)
-
-;; Put longest extensions first.
-;; Vectors are used so that the command line cannot be altered
-;; by the user.
+;; Put longest extensions first (due to the way matching is done)
+;; Vectors are used so that no intermediate shell is spawned by
+;; run-shell-command.  This is very important for security.
 (defparameter *conversions*
     '((".tar.bz2" . #.(vector "/bin/tar" "cjf" "-"))
       (".tar.gz" . #("/bin/tar" "czf" "-"))
@@ -61,6 +127,10 @@
       (".bz2" . #("/bin/bzip2" "-c"))
       (".gz" . #("/bin/gzip" "-9" "-c"))
       (".Z" . #("/bin/compress" "-c"))))
+
+(defparameter *debug* nil)
+
+;; End of configuration variables.
 
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
@@ -446,7 +516,7 @@
     (handler-case
 	(progn
 	  (umask (client-umask client))
-	  (outline "220 Welcome to Allegro FTPd")
+	  (outline "220 ~A" *banner*)
 	  (loop
 	    (let ((req (get-request client)))
 	      (if (eq req :eof)
@@ -1064,7 +1134,8 @@
 	  (return (outline "452 No data connection has been prepared.")))
       
       (with-umask ((if (and (anonymous client) *quarantine-anonymous-uploads*)
-		       #o777 (client-umask client)))
+		       #o777 
+		     (client-umask client)))
 	(ftp-with-open-file 
 	 (f errno fullpath
 	    :direction :output

@@ -1,3 +1,14 @@
+2002-01-18  Ahmon Dancy  <dancy@dancy>
+
+	* README: Fleshed out.
+
+	* CONFIG: New file w/ configuration section of ftpd.cl for
+	documentation purposes.
+
+	* ftpd.cl:  Made the connection banner a configurable parameter.
+
+	Added a gang of comments for the config params.
+
 2002-01-07  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl:

@@ -1,25 +1,111 @@
-$Id: README,v 1.3 2001/12/07 23:13:28 dancy Exp $
+$Id: README,v 1.4 2002/01/18 23:31:04 dancy Exp $
+
+---building---
 
 To build:
 Start lisp
-:cf ftpd.cl
+:cl ftpd.cl
 (build)
 
-That's it! Run aftpd/aftpd to go. 
+That's it! Run aftpd/aftpd.  
+
+--------------
+
+Configuration notes:
+
+Allegro FTPd configuration is determined by defparameter forms at the
+beginning of ftpd.cl.  Most of the forms have comments which indicate
+their proper use (the forms and comments are reproduced in the file
+CONFIG for binary distributions).  All of the parameters can be
+overridden at runtime by the /etc/aftpd.cl file (or whichever pathname
+is specified in *configfile* in ftpd.cl).  /etc/aftpd.cl is loaded
+when the FTP server is first started... and every time a new
+connection is made.  Simply supply new defparameter forms in
+/etc/aftpd.cl to override default configuration variables.
+
+Command line options:
+
+-f file		Use alternate config file.
+-d		Run in debug mode [doesn't fork]
+-p portnum	Use alternate ftp server port
 
 
-Anonymous ftp setup:
+--------Anonymous ftp setup-------------------
 
 *anonymous-ftp-account* must exist in /etc/passwd and it's home
 directory must exist.  The home directory should be set up for a
-chroot environment.  Required files:
+chroot environment.  Required files (relative to the chroot'd home
+directory)
 
 /dev/null (Linux: mknod null c 1 3; chmod a+w null)
 /bin/ls Ideally statically linked.  If not, then the necessary shared
         libraries are necessary in /lib or /usr/lib
 
 Optional:
-/welcome.msg  Displayed after login
-/etc/passwd and /etc/group if you want 'ls' to display names instead
-  of numbers.
-tar, compression programs, etc if you want conversions.
+/welcome.msg  Displayed after authentication has been completed
+/etc/passwd and /etc/group if you want 'ls' to display user/group names 
+  instead of id numbers.
+tar, compression programs, etc, and their necessary shared libraries
+ if you want conversions.
+
+----------------------------------------------
+
+Restricted users:
+
+The restricted users feature allows you to confine users to their home
+directory and below.  This feature is best for FTP-only users (i.e.,
+users that have no other file access on the system beyond FTP).  If a
+user has, for example, shell access to the system, they can make a
+symbolic link in their home directory that will allow them to escape
+this restriction.  The FTP protocol implemented in this version of the
+Allegro FTPd doesn't allow for the creation of symbolic links, so
+FTP-only accounts shouldn't (in the absence of bugs) be able to
+escape.
+
+If you want to allow a restricted user to reach other restricted
+subsets of the filesystem, you can make symbolic links in their home
+directory which point to other directories.  As long as those
+directories and subdirectories don't have symbolic links which point
+outside of them, the user will remain confined within them.
+
+The restricted user feature works by keeping careful track of the
+user's current working directory.  When a restricted user initially
+logs in, their cwd (current working directory) is set to their home
+directory (as stated in /etc/passwd).  All pathnames that a user
+enters are parsed and converted into absolute pathnames.  When the
+pathname parser encounters '..', it strips one component from the tail
+of the pathname.  All absolute pathnames must have a prefix that is
+equal to the restricted user's directory, otherwise access will be
+denied.
+
+The following example illustrates these concepts:
+
+[User's home directory is /home/dancy]
+login:  cwd starts at /home/dancy
+
+cd ..:  disallowed because absolute pathname is /home
+
+cd /:  disallowed because absolute pathname is /
+
+cd ../../home/dancy:  allowed because absolute pathname is /home/dancy
+
+cd somedir:  allowed because absolute pathname is /home/dancy/somedir.
+[cwd is now /home/dancy/somedir]
+
+cd ..:  allowed because absolute pathname is /home/dancy
+[cwd is now /home/dancy]
+
+[Assume that 'dirptr' is a symbolic link to /home/joe]
+cd dirptr:  allowed because absolute pathname is /home/dancy/dirptr 
+            even though the ultimate destination, as far as the
+            operating system is concerned, is /home/joe.
+[cwd is now /home/dancy/dirptr]
+
+cd ..:  allowed because absolute pathname is /home/dancy again.
+
+
+
+
+
+
+
