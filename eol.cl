@@ -3,7 +3,9 @@
 (in-package :excl)
 
 (eval-when (compile load eval)
-  (export 'find-composed-external-format))
+  (export 'find-composed-external-format)
+  (require :efmacs)
+  (require :iodefs))
 
 (defun find-composed-external-format (composer composee
 				      &aux (composer (find-external-format

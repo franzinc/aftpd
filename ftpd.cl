@@ -1,11 +1,10 @@
-;; $Id: ftpd.cl,v 1.2 2001/12/06 18:18:35 dancy Exp $
+;; $Id: ftpd.cl,v 1.3 2001/12/06 23:32:03 dancy Exp $
 
 (in-package :user)
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
   
-;; Need an external configuration file.
 (defparameter *ftpport* 21)
 ;; Control channel timeout
 (defparameter *idletimeout* 120)
@@ -15,7 +14,7 @@
 (defparameter *connecttimeout* 60)
 (defparameter *badpwdelay* 5)
 (defparameter *max-password-attempts* 2)
-(defparameter *pasvrange* '(51000 . 51999))
+(defparameter *pasvrange* '(35000 . 39999))
 (defparameter *interface* nil) ;; nil means all
 (defparameter *default-umask* #o022) 
 (defparameter *anonymous-ftp-names* '("ftp" "anonymous"))
@@ -29,7 +28,7 @@
 (defparameter *anonymous-delete-restricted* t)
 (defparameter *anonymous-chmod-restricted* t)
 
-(defparameter *debug* t)
+(defparameter *debug* nil)
 
 ;; Put longest extensions first
 (defparameter *conversions*
@@ -41,7 +40,13 @@
       (".bz2" . "/bin/bzip2 -c ~A")
       (".gz" . "/bin/gzip -9 -c ~A")
       (".Z" . "/bin/compress -c ~A")))
-      
+
+(defparameter *configfile* "/etc/aftpd.cl")
+
+(eval-when (load eval)
+  (if (probe-file *configfile*)
+      (load *configfile*)))
+
 
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
@@ -87,6 +92,9 @@
   (load "getpwnam.fasl")
   (load "stat.fasl")
   (load "eol.fasl")
+  ;;; cox recommendation
+  (defparameter *extfcrlf* 
+      (find-composed-external-format :e-crlf (crlf-base-ef :latin1)))
   (require :acldns))
 
 ;; System dependent.
@@ -200,12 +208,12 @@
 	  (let ((client (ignore-errors (socket:accept-connection serv))))
 	    (if client
 		(progn
-		  (format t "Connection made from ~A.~%"
-			  (socket:ipaddr-to-dotted 
-			   (socket:remote-host client)))
+		  (ftp-log "Connection made from ~A.~%"
+			   (socket:ipaddr-to-dotted 
+			    (socket:remote-host client)))
 		  (spawn-client client serv)))))
       ;; cleanup forms
-      (format t "Cleanup: Closing server socket.~%")
+      (ftp-log "Cleanup: Closing server socket.~%")
       (close serv))))
 
 ;; Orphans the child so that 'init' will pick it up.
@@ -220,7 +228,7 @@
 		    (ftpd-main sock)
 		  (handler-case (ftpd-main sock)
 		    (t (c)
-		      (format t "Error ~S~%" c))))
+		      (ftp-log "Error ~S~%" c))))
 		(exit t :no-unwind t :quiet t)) ;; make sure this lisp exits.
 	    (exit t :no-unwind t :quiet t))) ;; orphan the child
       (progn
@@ -237,13 +245,6 @@
   (without-interrupts
    (native-to-string (unix-crypt string salt))))
 
-(defun ctime (time &key strip-newline)
-  (let ((ptime (ff:allocate-fobject :unsigned-int :foreign-static-gc)))
-    (setf (ff:fslot-value ptime) time)
-    (let ((res (without-interrupts (native-to-string (unix-ctime ptime)))))
-      (if strip-newline
-	  (subseq res 0 (1- (length res)))
-	res))))
 
 ;;;
 
@@ -344,11 +345,12 @@
 	  (setf cmdname cmdstring)
 	(setf cmdname (subseq cmdstring 0 spacepos)))
       
-      (if (equalp cmdname "pass")
-	  (format t "~A: PASS XXXXXX~%"
+      (if (and (not (anonymous client)) 
+	       (equalp cmdname "pass"))
+	  (ftp-log "~A: PASS XXXXXX~%"
 		  (socket:ipaddr-to-dotted 
 		   (socket:remote-host (client-sock client))))
-	(format t "~A: ~A~%"
+	(ftp-log "~A: ~A~%"
 		(socket:ipaddr-to-dotted 
 		 (socket:remote-host (client-sock client)))
 		cmdstring))
@@ -367,7 +369,7 @@
 		 "")))))
 
 (defun cleanup (client)
-  (format t "Client from ~A disconnected.~%"
+  (ftp-log "Client from ~A disconnected.~%"
 	  (socket:ipaddr-to-dotted
 	   (socket:remote-host (client-sock client))))
   (cleanup-data-connection client))
@@ -442,7 +444,7 @@
 			  :quit)))))
 
       ;; Successful authentication
-      (format t "User ~A logged in.~%" (user client))
+      (ftp-log "User ~A logged in.~%" (user client))
       (setf (pwd client) (pwent-dir pwent))
 
       (if (anonymous client)
@@ -451,23 +453,23 @@
       ;; Set up
       (if (not (= 0 (setgid (pwent-gid pwent))))
 	  (progn
-	    (format t "Failed to setgid(~D)~%" (pwent-gid pwent))
+	    (ftp-log "Failed to setgid(~D)~%" (pwent-gid pwent))
 	    (outline "421 Local configuration error.")
 	    (return :quit)))
       (if (not (= 0 (initgroups (user client) (pwent-gid pwent))))
 	  (progn
-	    (format t "Failed to initgroups~%")
+	    (ftp-log "Failed to initgroups~%")
 	    (outline "421 Local configuration error.")
 	    (return :quit)))
       
       (if (not (= 0 (setuid (pwent-uid pwent))))
 	  (progn
-	    (format t "Failed to setuid(~D)~%" (pwent-uid pwent))
+	    (ftp-log "Failed to setuid(~D)~%" (pwent-uid pwent))
 	    (outline "421 Local configuration error.")
 	    (return :quit)))
       (if (null (ftp-chdir (pwent-dir pwent)))
 	  (progn
-	    (format t "Failed to chdir(~A)~%" (pwent-dir pwent))
+	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    
 	    ;; Anonymous users have no alternative
 	    (if (anonymous client)
@@ -477,7 +479,7 @@
 	    
 	    (if (not (ftp-chdir "/"))
 		(progn
-		  (format t "Failed to chdir(/)~%")
+		  (ftp-log "Failed to chdir(/)~%")
 		  (outline "421 Local configuration error.")
 		  (return :quit))
 	      (progn
@@ -494,12 +496,12 @@
     (let ((pwent (pwent client)))
       (if (null (ftp-chdir (pwent-dir pwent)))
 	  (progn
-	    (format t "Failed to chdir(~A)~%" (pwent-dir pwent))
+	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    (outline "421 Local configuration error.")
 	    (return nil)))
       (if (not (= 0 (chroot (pwent-dir pwent))))
 	  (progn
-	    (format t "Failed to chroot(~A)~%" (pwent-dir pwent))
+	    (ftp-log "Failed to chroot(~A)~%" (pwent-dir pwent))
 	    (outline "421 Local configuration error.")
 	    (return nil)))
       (setf (pwent-dir pwent) "/")
@@ -561,7 +563,7 @@
 		(< port 1024))
 	    (return
 	      (progn
-		(format t "Client from ~A tried to set PORT ~A:~A~%"
+		(ftp-log "Client from ~A tried to set PORT ~A:~A~%"
 			(socket:ipaddr-to-dotted 
 			 (socket:remote-host (client-sock client)))
 			(socket:ipaddr-to-dotted addr)
@@ -594,25 +596,24 @@
 		 nil))))
     (setf (pasv client) sock)
     (let ((addr (socket:local-host (client-sock client))))
-      (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D) [~D]"
+      (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D)"
 	       (logand (ash addr -24) #xff)
 	       (logand (ash addr -16) #xff)
 	       (logand (ash addr -8) #xff)
 	       (logand addr #xff)
 	       (logand (ash port -8) #xff)
-	       (logand port #xff)
-	       port))))
+	       (logand port #xff)))))
 
 (defun cmd-type (client cmdtail)
   (block nil
     (let ((params (delimited-string-to-list cmdtail " ")))
       (cond
-       ((equalp cmdtail "i")
+       ((or (equalp cmdtail "i") (equalp cmdtail "image"))
 	(setf (client-type client) :image)
 	(outline "200 Type set to I."))
        ((equalp cmdtail "e")
 	(outline "504 Type E not implemented."))
-       ((equalp (first params) "a")
+       ((or (equalp (first params) "a") (equalp (first params) "ascii"))
 	(if (and (second params) 
 		 (not (equalp (second params) "n")))
 	    (return (outline "504 Form must be N.")))
@@ -670,7 +671,7 @@
 	  (if (not (= (socket:remote-host newsock)
 		      (socket:remote-host (client-sock client))))
 	      (progn
-		(format t "Non-client connection to PASV port ~A:~A made by ~A.~%"
+		(ftp-log "Non-client connection to PASV port ~A:~A made by ~A.~%"
 			(socket:ipaddr-to-dotted 
 			 (socket:local-host (client-sock client)))
 			(socket:local-port (pasv client))
@@ -809,8 +810,6 @@
   (let ((inbuffer (make-string 32768))
 	(outbuffer (make-array 65536 :element-type '(unsigned-byte 8)))
 	(sock (dataport-sock client))
-	(extf (find-composed-external-format :crlf 
-					     (crlf-base-ef :latin1)))
 	got)
     (while (not (= 0 (setf got (read-sequence inbuffer f :partial-fill t))))
 	   (multiple-value-bind (ignore count)
@@ -818,7 +817,7 @@
 				 :null-terminate nil 
 				 :mb-vector outbuffer
 				 :end got
-				 :external-format extf)
+				 :external-format *extfcrlf*)
 	     (declare (ignore ignore))
 	     (write-complete-vector outbuffer count sock))))
     t)
@@ -1342,3 +1341,27 @@
       (outline "200 UMASK set to 0~o (was 0~o)" newumask (client-umask client))
       (umask newumask)
       (setf (client-umask client) newumask))))
+
+;;;  Logging
+
+(defun ctime (time &key strip-newline)
+  (let ((ptime (ff:allocate-fobject :unsigned-int :foreign-static-gc)))
+    (setf (ff:fslot-value ptime) time)
+    (let ((res (without-interrupts (native-to-string (unix-ctime ptime)))))
+      (if strip-newline
+	  (subseq res 0 (1- (length res)))
+	res))))
+
+(defun ftp-log (&rest args)
+  (format t "~A: ~?"
+	  (ctime (unix-time 0) :strip-newline t)
+	  (first args)
+	  (rest args)))
+
+;;;;;;;;;
+(defun build ()
+  (compile-file-if-needed "ftpd.cl")
+  (generate-executable "aftpd" '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl")))
+
+(defun main (&rest args)
+  (standalone-main))

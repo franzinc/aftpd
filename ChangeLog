@@ -1,0 +1,21 @@
+2001-12-06  Ahmon Dancy  <dancy@dancy>
+
+	* eol.cl:  Added some 'require's.
+
+	* ftpd.cl:  Changed the default PASV port range.  Changed *debug*
+	to default to nil.  Added *configfile* parameter and code to load
+	*configfile* if it exists. 
+
+	Some external format changes.  Using a 6.1-only :e-crlf format
+	which eased some application building pains.
+
+	Added ftp-log function for logging.  Changed all relevant format
+	statements to calls to ftp-log.
+
+	Changed the "Entering Passive Mode" respond (removed some
+	debugging info that upset Opera).
+
+	Added "image" and "ascii" as aliases for "i" and "a" in the TYPE
+	command [Bogus browsers.. *sigh*].
+	
+	Added application-building function.
