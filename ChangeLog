@@ -1,5 +1,18 @@
 2001-12-06  Ahmon Dancy  <dancy@dancy>
 
+	* Added support for the telnet codes that sometimes get sent
+	before ABOR requests.  They're ignored.  Double-IAC codes are
+	converted to a single #xff character (in case a filename has such
+	a character).  
+
+	* Added cmd-abor.  I thought I had that in there already.
+
+	* Transfer error messages are now ensured to be all on one line.
+
+	* Fixed bug in store-file-binary.  
+
+	* added minimal HELP SITE support.
+	
 	* Updated the way the config file is loaded.  Add process id to
 	ftp-log output.  If *debug* is :verbose, log (outline) data. 
 

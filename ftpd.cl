@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.4 2001/12/07 00:04:25 dancy Exp $
+;; $Id: ftpd.cl,v 1.5 2001/12/07 02:21:20 dancy Exp $
 
 (in-package :user)
 
@@ -291,11 +291,16 @@
 
 ;;;
 
+(defconstant *telnetIAC* 255)
+;;(defconstant *telnetIP* 244)
+;;(defconstant *telnetSynch* 242)
 
 (defun get-request (client)
   (let ((sock (client-sock client))
 	(buffer (make-string 1024))
 	(pos 0)
+	lastchar
+	gotiac
 	char)
     (mp:with-timeout (*idletimeout* :timeout)
       (loop
@@ -306,14 +311,32 @@
 	  (handler-case (read-char sock)
 	    (t ()
 	      nil)))
+
 	(if (null char)
 	    (return :eof))
-	(if (char= char #\newline)
-	    (if (and (> pos 0) (char= (schar buffer (1- pos)) #\return))
-		(return (subseq buffer 0 (1- pos)))))
-	(setf (schar buffer pos) char)
-	(incf pos)))))
+	
+	(if (and (char= char #\newline) (eq lastchar #\return))
+	    (return (subseq buffer 0 (1- pos))))
 
+	;;; XXX -- telnet sequences.  Stripped and ignored.
+	;;; XXX -- (two-byte sequences, only)
+	(if* gotiac
+	   then
+		(setf gotiac nil)
+		(if (= (char-code char) *telnetIAC*)
+		    (progn
+		      ;; escaped #xff
+			      (setf (schar buffer pos) char)
+		      (incf pos)
+		      (setf lastchar char)))
+	   else
+		(if (= (char-code char) *telnetIAC*)
+		    (setf gotiac t)
+		  (progn
+		    ;; Regular stuff
+		    (setf (schar buffer pos) char)
+		    (incf pos)
+		    (setf lastchar char))))))))
 
 (defun ftpd-main (sock)
   (unwind-protect
@@ -658,6 +681,13 @@
   (declare (ignore client cmdtail))
   (outline "202 ALLO command ignored."))
 
+;; XXX -- pretty useless I don't suppose asychronous requests.
+(defun cmd-abor (client cmdtail)
+  (declare (ignore cmdtail))
+  (cleanup-data-connection client)
+  (outline "225 ABOR command successful."))
+  
+
 (defun data-connection-prepared-p (client)
   (or (dataport-addr client)
       (pasv client)))
@@ -793,7 +823,9 @@
 	      (outline "426 Data connection: Broken pipe."))
 	    nil)
 	  (t (c)
-	    (outline "426 Error: ~A" c)
+	    (let ((*print-pretty* nil))
+	      (outline "426 Error: ~A"
+		       (substitute #\space #\newline (format nil "~A" c))))
 	    nil))
 	(outline "226 Transfer complete."))
     
@@ -886,7 +918,9 @@
 		 (outline "426 Data connection: Broken pipe."))
 	       nil)
 	     (t (c)
-	       (outline "426 Error: ~A" c)
+	       (let ((*print-pretty* nil))
+		 (outline "426 Error: ~A"
+			  (substitute #\space #\newline (format nil "~A" c))))
 	       nil))
 	   (outline "226 Transfer complete."))
 
@@ -920,7 +954,7 @@
   (let ((in (dataport-sock client))
 	(buffer (make-array 65536 :element-type '(unsigned-byte 8)))
 	got)
-    (while (not (= 0 (read-vector buffer in)))
+    (while (not (= 0 (setf got (read-vector buffer in))))
 	   (write-complete-vector buffer got out))))
     
 
@@ -1134,9 +1168,20 @@
       (outline "257 ~S new directory created." fullpath))))
 	       
 
-;;; XXX -- doesn't use cmdtail
+;;; XXX --- doesn't have help for individual commands.
 (defun cmd-help (client cmdtail)
-  (declare (ignore cmdtail client))
+  (block nil
+    (if (string= cmdtail "")
+	(return (help-main)))
+    (let* ((spacepos (position #\space cmdtail))
+	   (helpon (if spacepos 
+		       (subseq cmdtail 0 spacepos)
+		     cmdtail)))
+      (if (equalp helpon "SITE")
+	  (return (help-site client cmdtail)))
+      (outline "550 Individual command HELP not implemented."))))
+
+(defun help-main ()
   (outline "214-The following commands are recognized (* =>'s unimplemented).")
   (let ((i 0))
     (maphash 
@@ -1340,6 +1385,15 @@
       (outline "200 UMASK set to 0~o (was 0~o)" newumask (client-umask client))
       (umask newumask)
       (setf (client-umask client) newumask))))
+
+;; doesn't use cmdtail
+(defun help-site (client cmdtail)
+  (declare (ignore client cmdtail))
+  (outline "214-The following SITE commands are recognized.")
+  (dolist (ent *sitecmds*)
+    (format *outlinestream* "   ~A" (string-upcase (car ent))))
+  (outline "")
+  (outline "214 Enjoy."))
 
 ;;;  Logging
 
