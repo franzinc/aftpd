@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: readme.txt,v 1.3 2002/09/18 18:34:10 layer Exp $
+$Id: readme.txt,v 1.4 2002/12/18 17:47:38 layer Exp $
 
 *******************************************************************************
 1. Installation
@@ -176,7 +176,7 @@ users joe, bobby, and mike, add the following line to /etc/aftpd.cl:
 
 (setq *restricted-users* '("joe" "bobby" "mike"))
 
-To restrict a single users, you must still use a list like so:
+To restrict a single user, you must still use a list like so:
 
 (setq *restricted-users* '("joe"))
 

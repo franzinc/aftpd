@@ -1,4 +1,4 @@
-;; $Id: config.cl,v 1.4 2002/12/13 17:56:26 dancy Exp $
+;; $Id: config.cl,v 1.5 2002/12/18 17:47:38 layer Exp $
 ;;
 ;; IMPORTANT:
 ;;   This file merely contains the default values for aFTPd and changing
@@ -113,10 +113,10 @@
 ;; This only happens once per directory for a given connection.
 (defparameter *message-file* ".message")
 
-;; If *quarantine-anonymous-uplodas* is non-nil, then all uploads by
+;; If *quarantine-anonymous-uploads* is non-nil, then all uploads by
 ;; anonymous accounts will be quarantined.  This means that they will
 ;; have their mode bits set to 000 (no read, no write, no execute, by
-;; anyone, including the owner).  This help prevent your FTP server
+;; anyone, including the owner).  This will help prevent your FTP server
 ;; from unwittingly becoming a warez site.   Keep in mind that this option
 ;; does not prevent uploads.  It just prevents people from downloading
 ;; the uploaded files until you change the mode bits on the file.

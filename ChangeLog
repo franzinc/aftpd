@@ -1,6 +1,12 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-12-18  Kevin Layer  <layer@crikey>
+<no version change, just doc changes>
+
+	* config.cl: fix typos in comments
+	* readme.txt: fix typo
+
 2002-12-13  Ahmon Dancy  <dancy@dancy>
 1.0.21
       * config.cl:  Added *default-directory-mode* parameter which is used
