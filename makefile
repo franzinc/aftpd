@@ -5,11 +5,17 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.18 2002/11/12 18:34:32 layer Exp $
+# $Id: makefile,v 1.19 2002/11/12 19:10:05 layer Exp $
 #
 # This makefile requires GNU make.
 
+platform = $(shell uname -s)
+
+ifeq ($(platform),Linux)
 mlisp = /fi/cl/6.2/bin/redhat6/mlisp
+else
+mlisp = /fi/cl/6.2/bin/solaris/mlisp
+endif
 
 INSTALLDIR=/usr/local/sbin
 
