@@ -5,11 +5,14 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.14 2002/09/17 22:38:06 layer Exp $
+# $Id: makefile,v 1.15 2002/09/18 18:34:10 layer Exp $
+#
+# This makefile requires GNU make.
 
 INSTALLDIR=/usr/local/sbin
 
 version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
+platform = $(shell uname -s)
 
 SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \
 	config.cl eol.cl ftpd.cl ipaddr.cl makefile passwd.cl \
@@ -24,6 +27,8 @@ default: FORCE
 	echo '(load "ftpd.fasl")' >> build.tmp
 	echo '(build)' >> build.tmp
 	mlisp-6.2 -batch -q -L build.tmp -kill
+
+pre-dist: FORCE
 	rm -fr aftpd-$(version)
 	mkdir aftpd-$(version)
 	cp -p makefile aftpd-$(version)
@@ -32,9 +37,9 @@ default: FORCE
 	cp -p config.cl aftpd-$(version)
 	cp -p readme.txt aftpd-$(version)
 	cp -p binary-license.txt aftpd-$(version)
-	mv aftpd aftpd-$(version)
+	cp -rp aftpd aftpd-$(version)
 
-linux solaris: clean default
+linux solaris: clean default pre-dist
 	gtar zcf aftpd-$@-$(version).tgz aftpd-$(version)
 
 src: FORCE
@@ -50,12 +55,19 @@ install-common: FORCE
 	rm -fr $(INSTALLDIR)/aftpd
 	mkdir -p $(INSTALLDIR)
 	cp -pr aftpd $(INSTALLDIR)
+	cp -p readme.txt $(INSTALLDIR)
+	cp -p config.cl $(INSTALLDIR)
+	cp -p binary-license.txt $(INSTALLDIR)
 
-install-linux: install-common
+ifeq ($(platform),Linux)
+install: install-common
 	cp -p aftpd.init /etc/init.d/aftpd
 	/sbin/chkconfig aftpd reset
+endif
 
-install-solaris: install-common
+ifeq ($(platform),SunOS)
+install: install-common
 	cp -p S99aftpd /etc/rc2.d
+endif
 
 FORCE:

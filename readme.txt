@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: readme.txt,v 1.2 2002/09/17 22:50:21 dancy Exp $
+$Id: readme.txt,v 1.3 2002/09/18 18:34:10 layer Exp $
 
 *******************************************************************************
 1. Installation
@@ -65,19 +65,20 @@ process.  The default installation process installs the program in the
 /usr/local/sbin/aftpd directory.  If this is not what you want, you
 can edit 'makefile' and 'aftpd.init' [linux] or 'S99aftpd' [Solaris].  
 
-Linux users:  
-make install-linux
+To finish the installation, do:
 
-Solaris users:
-make install-solaris
+   # make install
 
-This will copy the aftpd directory into /usr/local/sbin and install
-the appropriate scripts to make the FTP server start up at boot time.
-For linux, the installation is assumed to be Redhat-like.
+on both Linux and Solaris.  NOTE: you must have GNU make install to
+use the supplied makefile.  This will copy the aftpd directory into
+/usr/local/sbin and install the appropriate scripts to make the FTP
+server start up at boot time.  For Linux, the installation is assumed
+to be Redhat-like.
 
 To execute the server by hand, run /usr/local/sbin/aftpd/aftpd.
-Information on optional command line switches follows.  The FTP server
-only works properly when run as 'root'.
+Information on optional command line switches follows.
+
+The FTP server only works properly when run as 'root'.
 
 *******************************************************************************
 2. Configuration

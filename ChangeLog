@@ -1,6 +1,16 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+*******************************************************************************
+1.0.14 release
+*******************************************************************************
+
+2002-09-18  Kevin Layer  <layer@crikey>
+
+	* makefile: fix installation; "make install" does the right thing
+	on Linux and Solaris now.
+	* readme.txt: fix installation description
+
 2002-09-17  Kevin Layer  <layer@crikey>
 
 	* makefile: put files in src arching in aftpd-<version> directory
