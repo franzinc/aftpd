@@ -5,7 +5,7 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.29 2002/11/12 17:39:45 layer Exp $
+;; $Id: ftpd.cl,v 1.30 2002/11/12 18:34:32 layer Exp $
 
 (in-package :user)
 
@@ -24,11 +24,7 @@
 (defparameter *configfile* "/etc/aftpd.cl")
 
 (eval-when (compile load eval)
-  (defparameter *extra-files*
-      '(#-(version>= 6 2) "passwd"
-	#-(version>= 6 2) "eol"
-	#-(version>= 6 2) "posix-lock"
-	"ipaddr")))
+  (defparameter *extra-files* '("ipaddr")))
 
 (eval-when (compile)
   (dolist (source *extra-files*)
@@ -38,8 +34,7 @@
 (eval-when (compile load eval)
   (dolist (file *extra-files*)
     (load (concatenate 'string file ".fasl")))
-  (require :acldns)
-  #-(version>= 6 2) (use-package :util.passwd))
+  (require :acldns))
 
 (eval-when (compile load eval)
   (defparameter *extfcrlf* 
@@ -1646,8 +1641,6 @@ Note: -p and -f override any setting in the config file.~%~%"
   (exit -1 :quiet t))
 
 (defun main (&rest args)
-  #-(version>= 6 1)
-  (error "aFTPd only works on ACL 6.1 or later.")
   (system:with-command-line-arguments
       ("I:df:p:" image debug-mode configfile ftpport)
       (rest :usage *usage*)

@@ -8,6 +8,11 @@
 	* ftpd.cl: use osi module; remove all def-foreign-call's; don't
 	use eol.cl, passwd.cl and posix-lock.cl in favor of equivalent
 	functionality in osi module
+	* (NEW) debug.cl: for debugging
+	* (REMOVED) eol.cl: no longer needed
+	* (REMOVED) passwd.cl: no longer needed
+	* (REMOVED) posix-lock.cl: no longer needed
+	* (REMOVED) system-constants.c: no longer needed
 
 2002-10-22  Ahmon Dancy  <dancy@dancy>
 1.0.17

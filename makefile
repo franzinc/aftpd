@@ -5,11 +5,10 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.17 2002/11/12 17:39:45 layer Exp $
+# $Id: makefile,v 1.18 2002/11/12 18:34:32 layer Exp $
 #
 # This makefile requires GNU make.
 
-#mlisp = mlisp-6.2
 mlisp = /fi/cl/6.2/bin/redhat6/mlisp
 
 INSTALLDIR=/usr/local/sbin
@@ -18,9 +17,8 @@ version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 platform = $(shell uname -s)
 
 SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \
-	config.cl eol.cl ftpd.cl ipaddr.cl makefile passwd.cl \
-	posix-lock.cl rfc0959.txt \
-	system-constants.c S99aftpd aftpd.init
+	config.cl ftpd.cl ipaddr.cl makefile \
+	rfc0959.txt S99aftpd aftpd.init
 
 default: FORCE
 	rm -f build.tmp
