@@ -1,3 +1,5 @@
+$Id: BUGS,v 1.2 2001/12/06 18:18:35 dancy Exp $
+
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
 
 REST may not do the right thing for ASCII files.
@@ -7,3 +9,5 @@ Doesn't support the README file notice
 Need to make a logging function.
 
 Need errno information to improve error responses.
+
+Globbing doesn't work the same as it does in a shell.

@@ -1,10 +1,12 @@
+;; $Id: ftpd.cl,v 1.2 2001/12/06 18:18:35 dancy Exp $
+
 (in-package :user)
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
   
 ;; Need an external configuration file.
-(defparameter *ftpport* 2021)
+(defparameter *ftpport* 21)
 ;; Control channel timeout
 (defparameter *idletimeout* 120)
 ;; The maximum number of seconds between writes to the data socket
@@ -26,6 +28,8 @@
 (defparameter *anonymous-rmdir-restricted* t)
 (defparameter *anonymous-delete-restricted* t)
 (defparameter *anonymous-chmod-restricted* t)
+
+(defparameter *debug* t)
 
 ;; Put longest extensions first
 (defparameter *conversions*
@@ -74,13 +78,18 @@
 		     :returning :int)
 
 
-(eval-when (compile load eval)
+(eval-when (compile)
   (compile-file-if-needed "getpwnam.cl")
   (compile-file-if-needed "stat.cl")
+  (compile-file-if-needed "eol.cl"))
+
+(eval-when (compile load eval)
   (load "getpwnam.fasl")
   (load "stat.fasl")
+  (load "eol.fasl")
   (require :acldns))
 
+;; System dependent.
 (eval-when (load eval)
   (load "libcrypt.so"))
 
@@ -207,7 +216,11 @@
 	  (if (= pid 0)
 	      (progn
 		(close serv) ;; don't need it
-		(ftpd-main sock)
+		(if *debug*
+		    (ftpd-main sock)
+		  (handler-case (ftpd-main sock)
+		    (t (c)
+		      (format t "Error ~S~%" c))))
 		(exit t :no-unwind t :quiet t)) ;; make sure this lisp exits.
 	    (exit t :no-unwind t :quiet t))) ;; orphan the child
       (progn
@@ -265,7 +278,8 @@
 (defun stderr-reader (stderr)
   (let (line)
     (while (setf line (read-line stderr nil nil))
-	   (write-line line)))
+	   (write-line line)
+	   (force-output)))
   (close stderr))
 
 (defmacro with-external-command ((streamvar cmdvec) &body body)
@@ -303,7 +317,8 @@
 
 (defun ftpd-main (sock)
   (unwind-protect
-      (let ((client (make-instance 'client :sock sock)))
+      (let ((client (make-instance 'client :sock sock))
+	    (*locale* (find-locale :c))) 
 	(umask (client-umask client))
 	(with-output-to-client (client)
 	  (outline "220 Welcome to Allegro FTPd")
@@ -529,7 +544,7 @@
   (block nil
     (multiple-value-bind (matched whole a b c d e f)
 	(match-regexp 
-	 #.(compile-regexp "\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\)")
+	 "\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\),\\([0-9]+\\)"
 	 cmdtail)
       (declare (ignore whole))
       (if (not matched)
@@ -568,7 +583,8 @@
 			 ;;  XXX -- (random) always returns the same sequence of numbers.
 			 ;; XXX -- need to seed it w/ some random data (/dev/urandom)
 			 (random (1+ (- (cdr *pasvrange*) (car *pasvrange*))))))
-	   (handler-case (setf sock (socket:make-socket 
+	   (handler-case (setf sock (socket:make-socket
+				     :type :hiper
 				     :connect :passive
 				     :local-host *interface*
 				     :local-port port))
@@ -578,13 +594,14 @@
 		 nil))))
     (setf (pasv client) sock)
     (let ((addr (socket:local-host (client-sock client))))
-      (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D)"
+      (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D) [~D]"
 	       (logand (ash addr -24) #xff)
 	       (logand (ash addr -16) #xff)
 	       (logand (ash addr -8) #xff)
 	       (logand addr #xff)
 	       (logand (ash port -8) #xff)
-	       (logand port #xff)))))
+	       (logand port #xff)
+	       port))))
 
 (defun cmd-type (client cmdtail)
   (block nil
@@ -671,7 +688,8 @@
 	  (ignore-errors 
 	   (socket:make-socket :remote-host (dataport-addr client)
 			       :remote-port (dataport-port client)
-			       :local-host *interface*)))))
+			       :local-host *interface*
+			       :type :hiper)))))
     (if (null (dataport-sock client))
 	(progn
 	  (outline "425 Can't open data connection.")
@@ -680,42 +698,56 @@
 	(progn
 	  (outline "425 Can't open data connection.  Timed out.")
 	  (return nil)))
+
+    (socket:socket-control 
+     (dataport-sock client)
+     :read-timeout *transfertimeout*
+     :write-timeout *transfertimeout*)
+    
     (setf (dataport-open client) t)))
-	  
+
+(defmacro ftp-with-open-file ((streamsym errsym path &rest rest) &body body)
+  `(let (,errsym)
+     (let ((,streamsym 
+	    (handler-case (open ,path ,@rest)
+	      (file-error (c)
+		(setf ,errsym (excl::file-error-errno c))
+		nil))))
+       (unwind-protect (progn ,@body)
+	 (if ,streamsym
+	     (close ,streamsym))))))
 
 (defun cmd-retr (client file)
   (block nil
     (if (null (data-connection-prepared-p client))
 	(return (outline "452 No data connection has been prepared.")))
     
-    (if (not (probe-file file))
-	(multiple-value-bind (conv realname)
-	    (conversion-match file)
-	  (if conv
-	      (return (start-conversion client conv realname)))
-	  (return (outline "550 ~A: No such file or directory." file))))
-    
-    (let ((f (ignore-errors (open file))))
-      (if (null f)
-	  (return (outline "550 ~A: RETR failed." file)))
-      (unwind-protect
-	  ;; XXX -- this is only correct for binary files.
-	  (let ((res (ignore-errors 
-		      (file-position f (client-restart client)))))
-	    (setf (client-restart client) 0)
-	    (if (null res)
-		(return (outline "550 ~A: RETR (with REST) failed." file))))
-	  (let ((stat (ignore-errors (stat file))))
-	    (if (null stat)
-		(return (outline "550 ~A: RETR failed." file)))
-	    (if (not (S_ISREG (stat-mode stat)))
-		(return (outline "550 ~A: not a plain file." file)))
+    (let ((fullpath (make-full-path (pwd client) file)))
+      (if (not (probe-file fullpath))
+	  (multiple-value-bind (conv realname)
+	      (conversion-match fullpath)
+	    (if conv
+		(return (start-conversion client conv realname)))
+	    (return (outline "550 ~A: No such file or directory." file))))
 
-	    (transmit-stream client f file))
-	    
-	;; cleanup forms
-	(close f)))))
-    
+      (ftp-with-open-file 
+       (f errno fullpath)
+       (if (null f)
+	   (return (outline "550 ~A: ~A" file (strerror errno))))
+
+       ;; XXX -- this is only correct for binary files.
+       (let ((res (ignore-errors 
+		   (file-position f (client-restart client)))))
+	 (setf (client-restart client) 0)
+	 (if (null res)
+	     (return (outline "550 ~A: RETR (with REST) failed." file))))
+       (let ((stat (ignore-errors (stat file))))
+	 (if (null stat)
+	     (return (outline "550 ~A: RETR failed." file)))
+	 (if (not (S_ISREG (stat-mode stat)))
+	     (return (outline "550 ~A: not a plain file." file)))
+	 
+	 (transmit-stream client f fullpath))))))
     
 ;; This should be called after 'path' has been verified not to exist.
 (defun conversion-match (path)
@@ -753,62 +785,60 @@
 		 "BINARY" "ASCII")
 	     name)
 
-    (let ((res (dump-file client stream)))
-      (cleanup-data-connection client) ;; closes the data connection
-      (case res
-	(:error 
-	 (outline "426 Data connection: Broken pipe."))
-	(:timeout
-	 (outline "426 Data transfer timeout."))
-	(t
-	 (outline "226 Transfer complete."))))))
-
+    (if (handler-case (dump-file client stream)
+	  (socket-error (c)
+	    (if (or (eq (stream-error-identifier c) :read-timeout)
+		    (eq (stream-error-identifier c) :write-timeout))
+		(outline "426 Data transfer timeout.")
+	      (outline "426 Data connection: Broken pipe."))
+	    nil)
+	  (t (c)
+	    (outline "426 Error: ~A" c)
+	    nil))
+	(outline "226 Transfer complete."))
+    
+    (cleanup-data-connection client)))
 
 (defun dump-file (client f)
   (if (eq (client-type client) :ascii-nonprint)
       (dump-file-ascii client f)
-    (dump-file-binary client f)))
-
-
+    (dump-file-binary client f))
+  t)
+  
 (defun dump-file-ascii (client f)
-  (handler-case 
-      (let ((sock (dataport-sock client))
-	    char)
-	(while (setf char (read-char f nil nil))
-	       (if (eq :timeout 
-		       (mp:with-timeout (*transfertimeout* :timeout)
-			 (if (char= char #\newline)
-			     (progn
-			       (write-char #\return sock)
-			       (write-char #\linefeed sock))
-			   (write-char char sock))))
-		   (return :timeout))))
-    (t ()
-      :error)))
+  (let ((inbuffer (make-string 32768))
+	(outbuffer (make-array 65536 :element-type '(unsigned-byte 8)))
+	(sock (dataport-sock client))
+	(extf (find-composed-external-format :crlf 
+					     (crlf-base-ef :latin1)))
+	got)
+    (while (not (= 0 (setf got (read-sequence inbuffer f :partial-fill t))))
+	   (multiple-value-bind (ignore count)
+	       (string-to-octets inbuffer 
+				 :null-terminate nil 
+				 :mb-vector outbuffer
+				 :end got
+				 :external-format extf)
+	     (declare (ignore ignore))
+	     (write-complete-vector outbuffer count sock))))
+    t)
 
-    
 (defun dump-file-binary (client f)
   (let ((buffer (make-array 65536 :element-type '(unsigned-byte 8)))
 	(sock (dataport-sock client))
 	got)
     (while (not (= 0 (setf got (read-vector buffer f))))
-	   (if (eq :timeout 
-		   (mp:with-timeout (*transfertimeout* :timeout)
-		     (if (eq :error (write-complete-vector buffer got sock))
-			 (return :error))))
-	       (return :timeout)))))
+	   (write-complete-vector buffer got sock)))
+  t)
 
 (defun write-complete-vector (vec end stream)
-  (handler-case 
-      (let ((pos 0)
-	    newpos)
-	(while (< pos end)
-	       (setf newpos (write-vector vec stream :start pos :end end))
-	       (if (= newpos pos)
-		   (error "write-vector failed"))
-	       (setf pos newpos)))
-    (t ()
-      :error)))
+  (let ((pos 0)
+	newpos)
+    (while (< pos end)
+	   (setf newpos (write-vector vec stream :start pos :end end))
+	   (if (= newpos pos)
+	       (error "write-vector failed"))
+	   (setf pos newpos))))
       
 
 (defun cmd-stor (client file)
@@ -831,41 +861,46 @@
     
     (if (null (data-connection-prepared-p client))
 	(return (outline "452 No data connection has been prepared.")))
-
+    
     (with-umask ((if (and (anonymous client) *quarantine-anonymous-uploads*)
 		     #o777 (client-umask client)))
-      (let ((f (handler-case (open file 
-				   :direction :output
-				   :if-exists if-exists
-				   :if-does-not-exist :create)
-		 (file-error (c)
-		   (return (outline "550 ~A: ~A" 
-				    file 
-				    (strerror (excl::file-error-errno c))))))))
-	(unwind-protect
-	    (progn
-	      (if (null (establish-data-connection client))
-		  (return))
-	      
-	      (outline "150 Opening ~A mode data connection for ~A."
-		       (if (eq (client-type client) :ascii-nonprint)
-			   "ASCII" "BINARY")
-		       file)
+      (ftp-with-open-file 
+       (f errno (make-full-path (pwd client) file)
+	  :direction :output
+	  :if-exists if-exists
+	  :if-does-not-exist :create)
+       (if (null f)
+	   (return (outline "550 ~A: ~A" file (strerror errno))))
+       
+       (if (null (establish-data-connection client))
+	   (return))
+       
+       (outline "150 Opening ~A mode data connection for ~A."
+		(if (eq (client-type client) :ascii-nonprint)
+		    "ASCII" "BINARY")
+		file)
+       
+       (if (handler-case (store-file client f)
+	     (socket-error (c)
+	       (if (or (eq (stream-error-identifier c) :read-timeout)
+		       (eq (stream-error-identifier c) :write-timeout))
+		   (outline "426 Data transfer timeout.")
+		 (outline "426 Data connection: Broken pipe."))
+	       nil)
+	     (t (c)
+	       (outline "426 Error: ~A" c)
+	       nil))
+	   (outline "226 Transfer complete."))
 
-	      (let ((res (handler-case (store-file client f)
-			   (t ()
-			     :error))))
-		(cleanup-data-connection client) ;; closes the data connection
-		(if (eq res :error)
-		    (outline "426 Error transferring or saving file.")
-		  (outline "226 Transfer complete."))))
-	  ;; file cleanup
-	  (close f))))))
+       (cleanup-data-connection client)))))
+       
+
 
 (defun store-file (client out)
   (if (eq (client-type client) :ascii-nonprint)
       (store-file-ascii client out)
-    (store-file-binary client out)))
+    (store-file-binary client out))
+  t)
 
 (defun store-file-ascii (client out)
   (let ((in (dataport-sock client))
@@ -887,7 +922,7 @@
   (let ((in (dataport-sock client))
 	(buffer (make-array 65536 :element-type '(unsigned-byte 8)))
 	got)
-    (while (not (= 0 (setf got (read-vector buffer in))))
+    (while (not (= 0 (read-vector buffer in)))
 	   (write-complete-vector buffer got out))))
     
 
@@ -904,15 +939,19 @@
     (let ((newpwd (expand-tilde 
 		   client 
 		   (if (string= cmdtail "") "~" cmdtail))))
+
       (if (null newpwd)
 	  (return (outline "550 Unknown user name after ~~")))
-      (setf newpwd (update-pwd (pwd client) newpwd))
+      
+      (setf newpwd (make-full-path (pwd client) newpwd))
+      
       (if (null (ftp-chdir newpwd))
 	  (return (outline "550 ~A: Command failed." cmdtail)))
+      
       (setf (pwd client) newpwd)
       
       (if *message-file*
-	  (let ((msgfile (update-pwd newpwd *message-file*)))
+	  (let ((msgfile (make-full-path newpwd *message-file*)))
 	    (if (and (probe-file msgfile)
 		     (not (gethash msgfile (message-seen client))))
 		(progn
@@ -942,9 +981,7 @@
 	  dir
 	(concatenate 'string dir (subseq path slashpos))))))
   
-;; handle . and ..
-;; Also strips trailing slash.
-(defun update-pwd (pwd path)
+(defun make-full-path (pwd path)
   (block nil
     (if (char= (schar path 0) #\/)
 	(if (and (not (string= path "/"))
@@ -982,7 +1019,7 @@
       (with-external-command (stream 
 			      (concatenate 'vector
 				#.(vector "/bin/ls" "/bin/ls" "-la")
-				(glob path)))
+				(glob path (pwd client))))
 	(let (line)
 	  (while (setf line (read-line stream nil nil))
 		 (outline "~A" line)))))
@@ -1029,7 +1066,8 @@
 	(outline " No data connection")
       (if (pasv client)
 	  (outline " in Passive mode (~A:~A)"
-		   (socket:ipaddr-to-dotted (socket:local-host (client-sock client)))
+		   (socket:ipaddr-to-dotted 
+		    (socket:local-host (client-sock client)))
 		   (socket:local-port (pasv client)))
 	(outline " PORT (~A:~A)"
 		 (socket:ipaddr-to-dotted (dataport-addr client))
@@ -1037,13 +1075,12 @@
     (outline "211 End of status")))
 
 (defun cmd-stat-file (client file)
-  (declare (ignore client))
   (block nil
     (outline "213-status of ~A:" file)
     (with-external-command (stream 
 			    (concatenate 'vector 
 			      #.(vector "/bin/ls" "/bin/ls" "-la")
-			      (glob file)))
+			      (glob file (pwd client))))
       (let (line)
 	(while (setf line (read-line stream nil nil))
 	       (outline "~A" line))))
@@ -1053,35 +1090,51 @@
 ;; XXX -- need errno for good error message
 (defun cmd-dele (client file)
   (block nil
-    (if (not (probe-file file))
-	(return (outline "550 ~A: No such file or directory." file)))
-    (if (and (anonymous client) *anonymous-delete-restricted*)
-	(return (outline "553 Delete permission denied.")))
-    (if (not (ignore-errors (delete-file file)))
-	(return (outline "550 ~A: Operation failed." file)))
-    (outline "250 DELE command successful.")))
+    (let ((fullpath (make-full-path (pwd client) file)))
+    
+      (if (not (probe-file fullpath))
+	  (return (outline "550 ~A: No such file or directory." file)))
+      
+      (if (and (anonymous client) *anonymous-delete-restricted*)
+	  (return (outline "553 Delete permission denied.")))
+      
+      (if (not (ignore-errors (delete-file fullpath)))
+	  (return (outline "550 ~A: Operation failed." file)))
+      
+      (outline "250 DELE command successful."))))
 
 ;; XXX -- need errno for good error message
 (defun cmd-rmd (client file)
   (block nil
-    (if (not (probe-file file))
-	(return (outline "550 ~A: No such file or directory." file)))
-    (if (and (anonymous client) *anonymous-rmdir-restricted*)
-	(return (outline "553 RMD Permission denied.")))
-    (if (not (ignore-errors (delete-directory file)))
-	(return (outline "550 ~A: Operation failed." file)))
-    (outline "250 RMD command successful.")))
-
+    (let ((fullpath (make-full-path (pwd client) file)))
+      
+      (if (not (probe-file fullpath))
+	  (return (outline "550 ~A: No such file or directory." file)))
+      
+      (if (and (anonymous client) *anonymous-rmdir-restricted*)
+	  (return (outline "553 RMD Permission denied.")))
+      
+      (if (not (ignore-errors (delete-directory fullpath)))
+	  (return (outline "550 ~A: Operation failed." file)))
+      
+      (outline "250 RMD command successful."))))
+  
 ;; XXX -may want to use the 'mode' optional arg to make-directory
 (defun cmd-mkd (client newdir)
   (block nil
-    (if (and (anonymous client) *anonymous-mkdir-restricted*)
-	(return (outline "553 MKD Permission denied.")))
-    (handler-case (make-directory newdir)
-      (file-error (c)
-	(return (outline "550 ~A: ~A." newdir (strerror (excl::file-error-errno c))))))
-    (outline "257 ~S new directory created." 
-	     (update-pwd (pwd client) newdir))))
+    (let ((fullpath (make-full-path (pwd client) newdir)))
+      
+      (if (and (anonymous client) *anonymous-mkdir-restricted*)
+	  (return (outline "553 MKD Permission denied.")))
+      
+      (handler-case (make-directory fullpath)
+	(file-error (c)
+	  (return 
+	    (outline "550 ~A: ~A." newdir 
+		     (strerror (excl::file-error-errno c))))))
+      
+      (outline "257 ~S new directory created." fullpath))))
+	       
 
 ;;; XXX -- doesn't use cmdtail
 (defun cmd-help (client cmdtail)
@@ -1105,15 +1158,19 @@
     (outline "214 Enjoy.")))
 
 (defun cmd-mdtm (client file)
-  (declare (ignore client))
   (block nil
-    (if (not (probe-file file))
-	(return (outline "550 ~A: No such file or directory." file)))
-    (let ((stat (ignore-errors (stat file))))
+    (let (stat)
+      (if (not (probe-file (make-full-path (pwd client) file)))
+	  (return (outline "550 ~A: No such file or directory." file)))
+      
+      (setf stat (ignore-errors (stat file)))
+      
       (if (null stat)
 	  (return (outline "550 ~A: Command failed." file)))
+      
       (if (not (S_ISREG (stat-mode stat)))
 	  (return (outline "550 ~A: not a plain file." file)))
+      
       (outline "213 ~A" (make-mdtm-string (stat-mtime stat))))))
 
 ;; YYYYMMDDhhmmss
@@ -1138,20 +1195,22 @@
 	  (return))
       (setf comp (pop args))
       (if (string= comp "--")
-	  (return))
-      (if (match-regexp #.(compile-regexp "^-") comp)
+	  (progn
+	    (push comp switches)
+	    (return)))
+      (if (match-regexp "^-" comp)
 	  (push comp switches)
 	(push comp patterns)))
     (setf patterns (append patterns args))
-    (values switches patterns)))
+    (values (reverse switches) (reverse patterns))))
 
-(defun glob (cmdline)
+(defun glob (cmdline pwd)
   (if (string= cmdline "")
       (vector)
     (multiple-value-bind (switches patterns) (parse-cmdline cmdline)
       (let ((res (vector)))
 	(dolist (patt patterns)
-	  (setf res (concatenate 'vector res (glob-single patt))))
+	  (setf res (concatenate 'vector res (glob-single patt pwd))))
 	(concatenate 'vector (coerce switches 'vector) res)))))
 
 	
@@ -1160,16 +1219,25 @@
       (position #\? string)
       (position #\[ string)))
 
-(defun glob-single (patt)
-  (if (not (has-wildcard-p patt))
-      (vector patt)
-    (let ((matches (directory patt)))
-      (if (null matches)
-	  (vector patt)
-	(let (res)
-	  (dolist (ent (directory patt))
-	    (push (basename ent) res))
-	  (coerce (reverse res) 'vector))))))
+;;; this isn't quite right.
+(defun glob-single (patt pwd)
+  (let ((bigpatt (make-full-path pwd patt)))
+    (if (not (has-wildcard-p patt))
+	(vector patt)
+      (let ((matches (directory bigpatt)))
+	(if (null matches)
+	    (vector patt)
+	  (mapcar #'(lambda(ent) (make-relative ent pwd)) matches))))))
+
+(defun make-relative (path pwd)
+  (if (pathnamep path)
+      (setf path (namestring path)))
+  (if (string= pwd "/")
+      (subseq path 1)
+    (if (string= (concatenate 'string pwd "/")
+		 (subseq path 0 (1+ (length pwd))))
+	(subseq path (1+ (length pwd)))
+      path)))
 
 (defun basename (path)
   (if (pathnamep path)
@@ -1180,21 +1248,28 @@
       (subseq path (1+ slashpos)))))
     
 (defun cmd-size (client file)
-  (declare (ignore client))
   (block nil
-    (if (not (probe-file file))
-	(return (outline "550 ~A: No such file or directory." file)))
-    (let ((stat (ignore-errors (stat file))))
+    (let (stat)
+      
+      (if (not (probe-file (make-full-path (pwd client) file)))
+	  (return (outline "550 ~A: No such file or directory." file)))
+      
+      (setf stat (ignore-errors (stat file)))
+      
       (if (null stat)
 	  (return (outline "550 ~A: Command failed." file)))
+      
       (if (not (S_ISREG (stat-mode stat)))
 	  (return (outline "550 ~A: not a plain file." file)))
+      
       (outline "213 ~D" (stat-size stat)))))
 
 (defun cmd-rnfr (client from)
   (block nil
-    (if (not (probe-file from))
+
+    (if (not (probe-file (make-full-path (pwd client) from)))
 	(return (outline "550 ~A: No such file or directory." from)))
+    
     (setf (rename-from client) from)
     (outline "350 File exists, ready for destination name")))
 
@@ -1204,13 +1279,15 @@
   (block nil
     (if (null (rename-from client))
 	(return (outline "503 Bad sequence of commands.")))
+    
     (if (and (anonymous client) *anonymous-rename-restricted*)
 	(return (outline "553 Rename permission denied.")))
+    
     (if (not (= 0 (rename (rename-from client) to)))
 	(outline "550 rename: Operation failed.")
       (outline "250 RNTO command successful."))
+    
     (setf (rename-from client) nil)))
-	  
 
 (defun cmd-site (client cmdtail)
   (block nil
@@ -1233,18 +1310,24 @@
 	  (return
 	    (outline "500 'SITE CHMOD ~A': Command not understood."
 		     cmdtail)))
-      (if (not (probe-file file))
+      
+      (if (not (probe-file (make-full-path (pwd client) file)))
 	  (return
 	    (outline "550 ~A: No such file or directory." file)))
+      
       (if (and (anonymous client) *anonymous-chmod-restricted*)
 	  (return (outline "553 Chmod permission denied.")))
+      
       (setf mode (ignore-errors (parse-integer mode :radix 8)))
+      
       (if (or (null mode) (< mode 0) (> mode #o777))
 	  (return
 	    (outline "501 CHMOD: Mode value must be between 0 and 0777")))
+      
       (if (not (= 0 (chmod file mode)))
 	  (return
 	    (outline "550 ~A: Operation failed." file)))
+      
       (outline "200 CHMOD command successful."))))
 
 (defun site-umask (client umask)
@@ -1259,4 +1342,3 @@
       (outline "200 UMASK set to 0~o (was 0~o)" newumask (client-umask client))
       (umask newumask)
       (setf (client-umask client) newumask))))
-

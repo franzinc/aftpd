@@ -1,3 +1,5 @@
+;; $Id: stat.cl,v 1.2 2001/12/06 18:18:35 dancy Exp $
+
 (in-package :user)
 
 ;; Linux 32-bit stat: Should be 88 bytes

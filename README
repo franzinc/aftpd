@@ -1,3 +1,5 @@
+$Id: README,v 1.2 2001/12/06 18:18:35 dancy Exp $
+
 Anonymous ftp setup:
 
 *anonymous-ftp-acocunt* must exist in /etc/passwd and it's home
