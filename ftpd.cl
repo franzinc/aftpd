@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.14 2001/12/19 23:36:26 dancy Exp $
+;; $Id: ftpd.cl,v 1.15 2001/12/20 20:16:17 dancy Exp $
 
 (in-package :user)
 
@@ -271,7 +271,7 @@
 #+linux
 (defconstant WNOHANG #x00000001)
 #+solaris2
-(defconstant WNOHANG #x00000001)
+(defconstant WNOHANG #x00000040)
 
 (defparameter *reaptime* 10)
 
@@ -838,7 +838,8 @@
 			 (socket:remote-host newsock)))
 		(ignore-errors (close newsock)))
 	    (return newsock))))))
-    
+
+;; This is covered by the with-timeout in establish-data-connection
 (defun make-active-connection (client)
   (handler-case 
       (with-root-privs ()
@@ -1636,7 +1637,7 @@
 	res))))
 
 (defun ftp-log (&rest args)
-  (util.posix-lock:with-stream-lock (*logstream* :wait t)
+  (util.posix-lock:with-stream-lock (*logstream*)
     (file-position *logstream* :end)
     (format *logstream* "~A [~D]: ~?"
 	    (ctime (unix-time 0) :strip-newline t)
@@ -1669,7 +1670,7 @@
 	(close *xferlogstream*))))
 
 (defun xfer-log (client fullpath direction bytes)
-  (util.posix-lock:with-stream-lock (*xferlogstream* :wait t)
+  (util.posix-lock:with-stream-lock (*xferlogstream*)
     (file-position *xferlogstream* :end)
     (format *xferlogstream* 
 	    "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"

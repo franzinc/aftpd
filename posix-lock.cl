@@ -18,6 +18,8 @@
 ;; you can't get a lock on the fd unless the fd is open for read/write
 ;; or write-only.
 
+;; mods by dancy to make it lock/unlock the entire file.
+
 ;; lockf is a fcntl wrapper function
 (ff:def-foreign-call (lockf "lockf") ((fd :int)(cmd :int)(len :int))
   :returning :int)
@@ -29,27 +31,41 @@
 (defconstant F_TEST  3) ; test
 ) ;; eval-when
 
+
+(defmacro with-saved-file-position ((stream) &body body)
+  (let ((streamvar (gensym))
+	(oldfileposvar (gensym)))
+    `(let* ((,streamvar ,stream)
+	    (,oldfileposvar (file-position ,streamvar)))
+       (file-position ,streamvar 0)
+       (unwind-protect
+	   (progn
+	     ,@body)
+	 (file-position ,streamvar ,oldfileposvar)))))
+
 (defun lock-stream (stream &key (wait nil))
   ;; try to lock the stream, return t if success
   (let ((code (if* wait
 		 then F_LOCK
 		 else F_TLOCK)))
-    (let ((ans (lockf (io-handle stream) code 0)))
+    (let ((ans (with-saved-file-position (stream)
+		 (lockf (io-handle stream) code 0))))
       (if* (< ans 0)
 	 then nil
 	 else t))))
 
 (defun unlock-stream (stream)
-  (lockf (io-handle stream) F_ULOCK 0))
+  (with-saved-file-position (stream)
+    (lockf (io-handle stream) F_ULOCK 0)))
 
 (defun io-handle (stream)
   (or (excl::stream-input-handle stream) 
       (excl::stream-output-handle stream)))
 
-(defmacro with-stream-lock ((stream &rest rest) &body body)
+(defmacro with-stream-lock ((stream) &body body)
   (let ((streamvar (gensym)))
     `(let ((,streamvar ,stream))
-       (lock-stream ,streamvar ,@rest)
+       (lock-stream ,streamvar :wait t)
        (unwind-protect
 	   (progn
 	     ,@body)

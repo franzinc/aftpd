@@ -1,3 +1,16 @@
+2001-12-20  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl: fixed WNOHANG constant for Solaris.
+
+	Changed calls to with-stream-lock (removed :wait keyword..  always
+	want to wait).
+
+	* posix-lock.cl:  Added with-saved-file-position macro which
+	executes its body with file position set to 0 beforehand and
+	restored afterword.    Now using this macro in the lock- and
+	unlock-stream functions to ensure the the entire file is locked
+	and unlocked.  
+
 2001-12-19  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl: Added make-active-connection function to make a
