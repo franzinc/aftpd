@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.15 2001/12/20 20:16:17 dancy Exp $
+;; $Id: ftpd.cl,v 1.16 2002/01/08 01:06:16 dancy Exp $
 
 (in-package :user)
 
@@ -12,14 +12,20 @@
 
 (defparameter *ftpport* 21)
 (defparameter *ftpdataport* 20)
+
 (defparameter *maxusers* nil) ;; unlimited
 (defparameter *toomanymsg* "/etc/toomany.msg")
-;; Control channel timeout
-(defparameter *idletimeout* 120)
+(defparameter *pidsfile* "/var/run/ftp.pids")
+
+;; Control channel timeout.  default -- 5 minutes
+(defparameter *idletimeout* (* 5 60))
+
 ;; The maximum number of seconds between writes to the data socket
 (defparameter *transfertimeout* 120)
+
 ;; Maximum time to wait for PASV or PORT connections to complete.
 (defparameter *connecttimeout* 60)
+
 (defparameter *badpwdelay* 5)
 (defparameter *max-password-attempts* 2)
 (defparameter *pasvrange* '(35000 . 39999))
@@ -59,6 +65,7 @@
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
 (ff:def-foreign-call waitpid () :strings-convert nil :returning :int)
+(ff:def-foreign-call kill () :strings-convert nil :returning :int)
 (ff:def-foreign-call (unix-crypt "crypt") () :strings-convert t 
 		     :returning :unsigned-int)
 (ff:def-foreign-call setgid () :strings-convert nil :returning :int)
@@ -244,48 +251,69 @@
       ;; cleanup forms
       (close serv))))
 
-(defparameter *children* 0)
+;; In case I can't get a decent SIGCHLD handler.
+
+(defmacro with-fork (pidsym parent-form child-form)
+  `(let ((,pidsym (fork)))
+     (cond
+      ((< ,pidsym 0)
+       (error "fork failed!"))
+      ((> ,pidsym 0) ;; parent
+       ,parent-form)
+      ((= ,pidsym 0) ;; child
+       ,child-form))))
+  
+(defmacro with-orphaned-child (&body body)
+  (let ((pidsym (gensym))
+	(pidsym2 (gensym)))
+    `(with-fork ,pidsym
+       ;; parent form
+       (waitpid ,pidsym 0 0) ;; reap child
+       ;; child form
+       (with-fork ,pidsym2
+	 ;; parent exits to orphan child.  (init will reap it)
+	 (exit t :no-unwind t :quiet t)
+	 ;; child does what it needs to do.
+	 (progn
+	   ,@body
+	   (exit t :no-unwind t :quiet t))))))
 
 (defun spawn-client (sock serv)
-  (let ((pid (fork)))
-    (cond
-     ((< pid 0)
-      (error "spawn-client: fork failed!"))
-     ((> pid 0) ;; parent
-      (close sock)
-      (without-interrupts
-	(incf *children*)
-	(if *debug*
-	    (format t "children count is now ~D~%" *children*)))
-      (if *debug*
-	  (format t "Spawned child ~D~%" pid))
-      (mp:process-run-function "Child reaper" 'reaper pid))
-     ((= pid 0) ;; child
-      (close serv)
+  (with-orphaned-child 
+      (close serv) ;; child doesn't need it.
+      (add-pid)
       (unwind-protect
 	  (ftpd-main sock)
-	(ignore-errors (close sock)))
-      (exit t :no-unwind t :quiet t))))) ;; don't want to return to main loop
-      
+	(ignore-errors (close sock))))
+  ;; child never gets here.  Parent does.
+  (close sock)) ;; main ftp server doesn't need this
 
-#+linux
-(defconstant WNOHANG #x00000001)
-#+solaris2
-(defconstant WNOHANG #x00000040)
+(defmacro with-pids-file ((stream-sym pids-list-sym) &body body)
+  `(with-open-file (,stream-sym *pidsfile*
+		    :if-exists :overwrite
+		    :if-does-not-exist :create
+		    :direction :io)
+     (util.posix-lock:with-stream-lock (,stream-sym)
+       (let ((,pids-list-sym (read ,stream-sym nil nil)))
+	 ,@body
+	 (file-position ,stream-sym 0)
+	 (format ,stream-sym "~A~%" ,pids-list-sym)))))
+     
+(defun add-pid ()
+  (with-pids-file (f pids)
+    (pushnew (getpid) pids)))
 
-(defparameter *reaptime* 10)
+;; returns the number of active pids.  
+;; also updates the pids file w/ the active list.
+(defun probe-pids-file ()
+  (let (active)
+    (with-pids-file (f pids)
+      (dolist (pid pids)
+	(if (= 0 (kill pid 0))
+	    (push pid active)))
+      (setf pids active))
+    (length active)))
 
-(defun reaper (pid)
-  (loop
-    (sleep *reaptime*)
-    (if (> (waitpid pid 0 WNOHANG) 0)
-	(return 
-	  (without-interrupts 
-	    (decf *children*)
-	    (if *debug*
-		(format t "Child ~d exited.~%children count is now ~D~%" 
-			pid *children*)))))))
-  
 ;;; C library utils
 
 (defun strerror (errno)
@@ -423,18 +451,19 @@
 	    (let ((req (get-request client)))
 	      (if (eq req :eof)
 		  (return (cleanup client)))
-	      (if (eq req :timeout)
-		  (progn
-		    (outline
-		     "421 Timeout: closing control connection.")
-		    (return (cleanup client))))
+	      (if* (eq req :timeout)
+		 then
+		      (ignore-errors ;; in case the connection disappeared
+		       (outline "421 Timeout: closing control connection."))
+		      (return (cleanup client)))
 	      (if (eq req :line-too-long)
 		  (outline "500 Command line too long! Request ignored")
 		(if (eq (dispatch-cmd client req) :quit)
 		    (return (cleanup client)))))))
       (error (c)
-	(outline "421 Error: ~A -- closing control connection."
-		 (substitute #\space #\newline (format nil "~A" c)))
+	(ignore-errors ;; in case the connection disappeared.
+	 (outline "421 Error: ~A -- closing control connection."
+		  (substitute #\space #\newline (format nil "~A" c))))
 	(ftp-log "Error: ~A~%" c))))
   (close-logs))
   
@@ -540,7 +569,7 @@
       (if (null (user client))
 	  (return (outline "503 Login with USER first.")))
 
-      (if* (and *maxusers* (>= *children* *maxusers*))
+      (if* (and *maxusers* (> (probe-pids-file) *maxusers*))
 	 then
 	      (dump-msg client "530" *toomanymsg*)
 	      (outline "530 Connection limit exceeded.")
@@ -1250,9 +1279,9 @@
 (defun out-of-bounds-p (client path)
   (not (within-dir-p path (pwent-dir (pwent client)))))
   
-
 ;; attempts to glob switches as well.  That shouldn't be a big deal.
-(defun cmd-list (client path)
+;; It might even work out in the interest of safety.
+(defun list-common (client path default-options)
   (block nil
     (let ((options (glob path (pwd client))))
       (if (and (restricted client)
@@ -1274,7 +1303,8 @@
       (let ((*outlinestream* (dataport-sock client)))
 	(with-external-command (stream 
 				(concatenate 'vector
-				  #.(vector "/bin/ls" "/bin/ls" "-la")
+				  #.(vector "/bin/ls" "/bin/ls")
+				  default-options
 				  options))
 	  (let (line)
 	    (while (setf line (read-line stream nil nil))
@@ -1283,33 +1313,11 @@
       (cleanup-data-connection client)
       (outline "226 Transfer complete."))))
 
+(defun cmd-list (client path)
+  (list-common client path #("-la")))
+
 (defun cmd-nlst (client path)
-  (block nil
-    (if (and (restricted client) 
-	     (not (string= path ""))
-	     (out-of-bounds-p client (make-full-path (pwd client) path)))
-	(return (outline "550 ~A: Permission denied." path)))
-    
-    (if (null (data-connection-prepared-p client))
-	(return (outline "452 No data connection has been prepared.")))
-    
-    (if (null (establish-data-connection client))
-	(return))
-
-    (outline "150 Opening ASCII mode data connection for file list.")
-
-    (let ((*outlinestream* (dataport-sock client)))
-      (with-external-command (stream 
-			      (vector "/bin/ls" "/bin/ls"
-				      (if (not (string= path ""))
-					  path
-					(pwd client))))
-	(let (line)
-	  (while (setf line (read-line stream nil nil))
-		 (outline "~A" line)))))
-    
-    (cleanup-data-connection client)
-    (outline "226 Transfer complete.")))
+  (list-common client path #()))
     
 ;; XXX -- according to the spec, this is supposed to work asynchronously.
 ;; XXX -- I'll probably never work on that.

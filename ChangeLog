@@ -1,3 +1,32 @@
+2002-01-07  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl:
+	Added parameter *pidsfile* which holds the path to the pids file.
+	The pids file keeps track of ftpd's that may be running (for in
+	limiting the number of connections).
+
+	Changed the default control channel timeout to 5 minutes.
+
+	Added kill() foreign call.
+
+	Added some macros related to forking.
+
+	Removed old child reaping code.  It didn't work out well.
+	Children are now immediately orphaned so that they become children
+	of process id #1 (init) (which always reaps).  
+
+	New children call add-pid to add their process id to the
+	*pidsfile* flie.  
+
+	To check the connections limit, probe-pids-file is called.  This
+	function calls kill w/ signal 0 for every pid it finds in the
+	*pidsfile* file.  signal 0 doesn't actually send a signal, but
+	does error checking.  This effectively checks for the existence of
+	a particular processes.  The list of processes that still exist is
+	written back to the *pidsfile* file and the count is returned.
+
+	Made NLST use globbing.  Some clients expect this.
+
 2001-12-20  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl: fixed WNOHANG constant for Solaris.
