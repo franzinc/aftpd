@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: README,v 1.6 2002/02/19 23:13:01 layer Exp $
+$Id: README,v 1.7 2002/03/07 00:12:44 dancy Exp $
 
 *******************************************************************************
 1. Installation
@@ -69,7 +69,10 @@ chroot environment.  Required files (relative to the chroot'd home
 directory)
 
 /dev/null
-    On Linux, create with ``mknod null c 1 3; chmod a+w null''.
+    Linux:
+      mknod null c 1 3; chmod a+w null
+    Solaris:
+      mknod null c 13 2; chmod a+w null
 
 /bin/ls
     Ideally (from a security standpoint) it should be statically
