@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.11 2001/12/11 19:14:50 dancy Exp $
+;; $Id: ftpd.cl,v 1.12 2001/12/12 19:03:26 dancy Exp $
 
 (in-package :user)
 
@@ -1451,7 +1451,7 @@
     (let ((fullpath (make-full-path (pwd client) file)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." file)))
       
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
