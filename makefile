@@ -5,9 +5,12 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.16 2002/09/30 19:57:24 dancy Exp $
+# $Id: makefile,v 1.17 2002/11/12 17:39:45 layer Exp $
 #
 # This makefile requires GNU make.
+
+#mlisp = mlisp-6.2
+mlisp = /fi/cl/6.2/bin/redhat6/mlisp
 
 INSTALLDIR=/usr/local/sbin
 
@@ -23,10 +26,11 @@ default: FORCE
 	rm -f build.tmp
 	rm -fr aftpd
 	echo '(load "config.cl")' >> build.tmp
+	echo '(setq excl::*break-on-warnings* t)' >> build.tmp
 	echo '(compile-file "ftpd.cl")' >> build.tmp
 	echo '(load "ftpd.fasl")' >> build.tmp
 	echo '(build)' >> build.tmp
-	mlisp-6.2 -batch -q -L build.tmp -kill
+	$(mlisp) -batch -q -L build.tmp -kill
 
 pre-dist: FORCE
 	rm -fr aftpd-$(version)

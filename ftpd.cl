@@ -5,69 +5,30 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.28 2002/10/22 17:45:31 dancy Exp $
+;; $Id: ftpd.cl,v 1.29 2002/11/12 17:39:45 layer Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.17")
+(defvar *ftpd-version* "1.0.18")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
+
+(eval-when (compile eval load)
+  (require :efmacs)
+  (require :osi)
+  (use-package :excl.osi))
 
 ;; Location of the configuration files (which one can use to 
 ;; override the rest of these parameters).
 (defparameter *configfile* "/etc/aftpd.cl")
 
-(ff:def-foreign-call fork () :strings-convert nil :returning :int)
-(ff:def-foreign-call wait () :strings-convert nil :returning :int)
-(ff:def-foreign-call waitpid () :strings-convert nil :returning :int)
-(ff:def-foreign-call kill () :strings-convert nil :returning :int)
-(ff:def-foreign-call (unix-crypt "crypt") () :strings-convert t 
-		     :returning :unsigned-int)
-(ff:def-foreign-call setgid () :strings-convert nil :returning :int)
-(ff:def-foreign-call setegid () :strings-convert nil :returning :int)
-(ff:def-foreign-call setuid () :strings-convert nil :returning :int)
-(ff:def-foreign-call seteuid () :strings-convert nil :returning :int)
-(ff:def-foreign-call geteuid () :strings-convert nil :returning :unsigned-int)
-(ff:def-foreign-call initgroups () :strings-convert t :returning :int)
-(ff:def-foreign-call getpid () :strings-convert nil :returning :unsigned-int)
-(ff:def-foreign-call umask () :strings-convert nil :returning :unsigned-int)
-(ff:def-foreign-call (unix-chdir "chdir") () :strings-convert t
-		     :returning :int)
-(ff:def-foreign-call chroot () :strings-convert t :returning :int)
-(ff:def-foreign-call unlink () :strings-convert t :returning :int)
-(ff:def-foreign-call (unix-strerror "strerror") () :strings-convert t 
-		     :returning :unsigned-int)
-(ff:def-foreign-call (unix-ctime "ctime") () :strings-convert nil 
-		     :returning :unsigned-int)
-(ff:def-foreign-call localtime () :strings-convert nil
-		     :returning :unsigned-int)
-(ff:def-foreign-call gmtime () :strings-convert nil
-		     :returning :unsigned-int)
-(ff:def-foreign-call strftime () :strings-convert t
-		     :returning :unsigned-int)
-(ff:def-foreign-call (unix-time "time") () :strings-convert nil
-		     :returning :unsigned-int)
-(ff:def-foreign-call rename () :strings-convert t
-		     :returning :int)
-(ff:def-foreign-call chmod () :strings-convert t 
-		     :returning :int)
-(ff:def-foreign-call setpgrp () :strings-convert nil 
-		     :returning :int)
-(ff:def-foreign-call (unix-open "open") () :strings-convert t
-		     :returning :int)
-(ff:def-foreign-call (unix-close "close") () :strings-convert nil
-		     :returning :int)
-(ff:def-foreign-call ioctl () :strings-convert t :returning :int)
-(ff:def-foreign-call dup2 () :strings-convert nil :returning :int)
-
-;; add to a unix time to get a universal time.
-;; subtract from a universal time to get a unix time.
-(defconstant *unix-time-to-universal-time* 2208988800)
-
 (eval-when (compile load eval)
   (defparameter *extra-files*
-      '("passwd" "eol" "posix-lock" "ipaddr")))
+      '(#-(version>= 6 2) "passwd"
+	#-(version>= 6 2) "eol"
+	#-(version>= 6 2) "posix-lock"
+	"ipaddr")))
 
 (eval-when (compile)
   (dolist (source *extra-files*)
@@ -78,17 +39,12 @@
   (dolist (file *extra-files*)
     (load (concatenate 'string file ".fasl")))
   (require :acldns)
-  (use-package :util.passwd))
+  #-(version>= 6 2) (use-package :util.passwd))
 
 (eval-when (compile load eval)
-  ;;; cox recommendation
   (defparameter *extfcrlf* 
       (find-composed-external-format :e-crlf (crlf-base-ef :latin1))))
 
-
-;; Good for Solaris and Linux
-(eval-when (load eval)
-  (load "libcrypt.so"))
 
 (defclass client () 
   ((sock :initarg :sock :reader client-sock)
@@ -111,77 +67,74 @@
    (rename-from :initform nil :accessor rename-from)
    (message-seen :initform (make-hash-table :test #'equal)
 		 :accessor message-seen)
-   (restricted :initform nil :accessor restricted)
-   ))
+   (restricted :initform nil :accessor restricted)))
 
-
-(eval-when (compile load eval)
-  (defstruct cmd
-    command
-    implemented
-    must-be-logged-in
-    handler)
+(defstruct cmd
+  command
+  implemented
+  must-be-logged-in
+  handler)
   
-  (defparameter *cmds* (make-hash-table :test #'equalp))
-  (dolist 
-      (entry 
-	  '(;; Login
-	    ("user" t nil cmd-user)
-	    ("pass" t nil cmd-pass)
-	    ("acct" nil nil nil)
-	    
-	    ;; Logout
-	    ("rein" nil nil nil)
-	    ("quit" t nil cmd-quit)
+(defparameter *cmds* (make-hash-table :test #'equalp))
 
-	    ;; Transfer parameters 
-	    ("port" t t cmd-port)
-	    ("pasv" t t cmd-pasv)
-	    ("mode" t t cmd-mode)
-	    ("type" t t cmd-type)
-	    ("stru" t t cmd-stru)
+(dolist (entry 
+	    '(;; Login
+	      ("user" t nil cmd-user)
+	      ("pass" t nil cmd-pass)
+	      ("acct" nil nil nil)
+	    
+	      ;; Logout
+	      ("rein" nil nil nil)
+	      ("quit" t nil cmd-quit)
 
-	    ;; File action commands 
-	    ("allo" t t cmd-allo)
-	    ("rest" t t cmd-rest)
-	    ("stor" t t cmd-stor)
-	    ("stou" nil t cmd-stou)
-	    ("retr" t t cmd-retr)
-	    ("list" t t cmd-list)
-	    ("nlst" t t cmd-nlst)
-	    ("appe" t t cmd-appe)
-	    ("rnfr" t t cmd-rnfr)
-	    ("rnto" t t cmd-rnto)
-	    ("dele" t t cmd-dele)
-	    ("rmd" t t cmd-rmd)
-	    ("xrmd" t t cmd-rmd)
-	    ("mkd" t t cmd-mkd)
-	    ("xmkd" t t cmd-mkd)
-	    ("pwd" t t cmd-pwd)
-	    ("xpwd" t t cmd-pwd)
-	    ("abor" t t cmd-abor)
-	    ("cwd" t t cmd-cwd)
-	    ("xcwd" t t cmd-cwd)
-	    ("cdup" t t cmd-cdup)
-	    ("xcup" t t cmd-cdup)
-	    ("smnt" nil nil nil)
-	    ("mdtm" t t cmd-mdtm)
-	    ("size" t t cmd-size)
+	      ;; Transfer parameters 
+	      ("port" t t cmd-port)
+	      ("pasv" t t cmd-pasv)
+	      ("mode" t t cmd-mode)
+	      ("type" t t cmd-type)
+	      ("stru" t t cmd-stru)
+
+	      ;; File action commands 
+	      ("allo" t t cmd-allo)
+	      ("rest" t t cmd-rest)
+	      ("stor" t t cmd-stor)
+	      ("stou" nil t cmd-stou)
+	      ("retr" t t cmd-retr)
+	      ("list" t t cmd-list)
+	      ("nlst" t t cmd-nlst)
+	      ("appe" t t cmd-appe)
+	      ("rnfr" t t cmd-rnfr)
+	      ("rnto" t t cmd-rnto)
+	      ("dele" t t cmd-dele)
+	      ("rmd" t t cmd-rmd)
+	      ("xrmd" t t cmd-rmd)
+	      ("mkd" t t cmd-mkd)
+	      ("xmkd" t t cmd-mkd)
+	      ("pwd" t t cmd-pwd)
+	      ("xpwd" t t cmd-pwd)
+	      ("abor" t t cmd-abor)
+	      ("cwd" t t cmd-cwd)
+	      ("xcwd" t t cmd-cwd)
+	      ("cdup" t t cmd-cdup)
+	      ("xcup" t t cmd-cdup)
+	      ("smnt" nil nil nil)
+	      ("mdtm" t t cmd-mdtm)
+	      ("size" t t cmd-size)
 	    
-	    ;; Informational commands
-	    ("syst" t t cmd-syst)
-	    ("stat" t t cmd-stat)
-	    ("help" t t cmd-help)
+	      ;; Informational commands
+	      ("syst" t t cmd-syst)
+	      ("stat" t t cmd-stat)
+	      ("help" t t cmd-help)
 	    
-	    ;; Miscellaneous commands
-	    ("site" t t cmd-site)
-	    ("noop" t t cmd-noop)))
-    (setf (gethash (first entry) *cmds*)
-      (make-cmd
-       :command (first entry)
-       :implemented (second entry)
-       :must-be-logged-in (third entry)
-       :handler (fourth entry)))))
+	      ;; Miscellaneous commands
+	      ("site" t t cmd-site)
+	      ("noop" t t cmd-noop)))
+  (setf (gethash (first entry) *cmds*)
+    (make-cmd
+     :command (first entry)
+     :implemented (second entry)
+     :must-be-logged-in (third entry)
+     :handler (fourth entry))))
 
 (defparameter *sitecmds*
     '(("chmod" . site-chmod)
@@ -199,12 +152,9 @@
     (unwind-protect
 	(loop
 	  (let ((client (handler-case (socket:accept-connection serv)
-			  (interrupt-signal ()
-			    (exit))
-			  (error ()
-			    nil))))
-	    (if client
-		(spawn-client client serv))))
+			  (interrupt-signal () (exit))
+			  (error () nil))))
+	    (when client (spawn-client client serv))))
       ;; cleanup forms
       (close serv))))
 
@@ -213,8 +163,7 @@
 (defmacro with-fork (pidsym parent-form child-form)
   `(let ((,pidsym (fork)))
      (cond
-      ((< ,pidsym 0)
-       (error "fork failed!"))
+      ((< ,pidsym 0) (error "fork failed!"))
       ((> ,pidsym 0) ;; parent
        ,parent-form)
       ((= ,pidsym 0) ;; child
@@ -225,7 +174,7 @@
 	(pidsym2 (gensym)))
     `(with-fork ,pidsym
        ;; parent form
-       (waitpid ,pidsym 0 0) ;; reap child
+       (waitpid ,pidsym) ;; reap child
        ;; child form
        (with-fork ,pidsym2
 	 ;; parent exits to orphan child.  (init will reap it)
@@ -238,19 +187,20 @@
 (defun spawn-client (sock serv)
   (with-orphaned-child 
       (close serv) ;; child doesn't need it.
-      (add-pid)
-      (unwind-protect
-	  (ftpd-main sock)
-	(ignore-errors (close sock))))
+    (add-pid)
+    (unwind-protect
+	(ftpd-main sock)
+      (ignore-errors (close sock))))
   ;; child never gets here.  Parent does.
-  (close sock)) ;; main ftp server doesn't need this
+  ;; main ftp server doesn't need this
+  (close sock))
 
 (defmacro with-pids-file ((stream-sym pids-list-sym) &body body)
   `(with-open-file (,stream-sym *pidsfile*
 		    :if-exists :overwrite
 		    :if-does-not-exist :create
 		    :direction :io)
-     (util.posix-lock:with-stream-lock (,stream-sym)
+     (with-stream-lock (,stream-sym)
        (let ((,pids-list-sym (read ,stream-sym nil nil)))
 	 ,@body
 	 (file-position ,stream-sym 0)
@@ -266,26 +216,13 @@
   (let (active)
     (with-pids-file (f pids)
       (dolist (pid pids)
-	(if (= 0 (kill pid 0))
-	    (push pid active)))
+	(when (handler-case (kill pid 0)
+		(error () nil))
+	  (push pid active)))
       (setf pids active))
     (length active)))
 
-;;; C library utils
-
-(defun strerror (errno)
-  (if (null errno)
-      "Unknown error"
-    (without-interrupts
-      (native-to-string (unix-strerror errno)))))
-
-(defun crypt (string salt)
-  (without-interrupts
-   (native-to-string (unix-crypt string salt))))
-
-
 ;;;
-
 
 (defparameter *outlinestream* 'outlinestream-not-bound)
 
@@ -377,7 +314,7 @@
 		(if (= (char-code char) *telnetIAC*)
 		    (progn
 		      ;; escaped #xff
-			      (setf (schar buffer pos) char)
+		      (setf (schar buffer pos) char)
 		      (incf pos)
 		      (setf lastchar char)))
 	   else
@@ -463,19 +400,16 @@
 (defmacro with-root-privs (() &body body)
   (let ((oldidsym (gensym)))
     `(let ((,oldidsym (geteuid)))
-       (if (not (= 0 (seteuid 0)))
-	   (error "Failed to recover root privs"))
+       (seteuid 0)
        (unwind-protect
-	   (progn
-	     ,@body)
-	 (if (not (= 0 (seteuid ,oldidsym)))
-	     (error "Failed to reset regular user privs"))))))
+	   (progn ,@body)
+	 (seteuid ,oldidsym)))))
 
 (defun ftp-chdir (dir)
-  (if (= 0 (unix-chdir dir))
-      (setf *default-pathname-defaults* 
-	(pathname (concatenate 'string dir "/")))
-    nil))
+  (handler-case (setq *default-pathname-defaults* (pathname (chdir dir)))
+    (error (c)
+      (ftp-log "chdir ~s failed: ~a~%" dir c)
+      nil)))
 
 (defun cmd-quit (client cmdtail)
   (declare (ignore cmdtail client))
@@ -507,13 +441,14 @@
 ;; XXX -- could use PAM
 (defun lookup-account (user)
   (block nil
-    (let ((pwent (get-pwent-by-name user)))
+    (let ((pwent (getpwnam user)))
       (if (null pwent)
 	  (return nil))
-      (if (string= (pwent-passwd pwent) "x")
-	  (let ((spent (get-spent-by-name user)))
+      (if (and (shadow-passwd-supported-p)
+	       (string= (pwent-passwd pwent) "x"))
+	  (let ((spent (getspnam user)))
 	    (if spent
-		(setf (pwent-passwd pwent) (spent-passwd spent)))))
+		(setf (pwent-passwd pwent) (spwd-passwd spent)))))
       pwent)))
 
 (defun cmd-pass (client pass)
@@ -554,59 +489,54 @@
       (setf (pwd client) (pwent-dir pwent))
 
       (if* (anonymous client)
-	 then
-	      (anonymous-setup client)
-	 else
-	      ;; If *restricted-users* is 't', then all users are restricted except for those
-	      ;; in the *unrestricted-users* list.   Otherwise, a user is restricted if he/she
-	      ;; is listed in *restricted-users*.
+	 then (anonymous-setup client)
+	 else ;; If *restricted-users* is 't', then all users are
+	      ;; restricted except for those in the *unrestricted-users*
+	      ;; list.   Otherwise, a user is restricted if he/she is
+	      ;; listed in *restricted-users*.
 	      
 	      (if* (eq *restricted-users* t)
-		 then
-		      (if (member (user client) *unrestricted-users* :test #'string=)
+		 then (if (member (user client) *unrestricted-users*
+				  :test #'string=)
 			  (setf (restricted client) nil)
 			(setf (restricted client) t))
-		 else
-		      (if (member (user client) *restricted-users* :test #'string=)
+		 else (if (member (user client) *restricted-users*
+				  :test #'string=)
 			  (setf (restricted client) t))))
       
       ;; Set up
-      (if (not (= 0 (setegid (pwent-gid pwent))))
-	  (progn
-	    (ftp-log "Failed to setegid(~D)~%" (pwent-gid pwent))
-	    (outline "421 Local configuration error.")
-	    (return :quit)))
+      (handler-case (setegid (pwent-gid pwent))
+	(error (c)
+	  (ftp-log "Failed to setegid(~D): ~a~%" (pwent-gid pwent) c)
+	  (outline "421 Local configuration error.")
+	  (return :quit)))
       
-      (if (not (= 0 (initgroups (user client) (pwent-gid pwent))))
-	  (progn
-	    (ftp-log "Failed to initgroups~%")
-	    (outline "421 Local configuration error.")
-	    (return :quit)))
+      (handler-case (initgroups (user client) (pwent-gid pwent))
+	(error (c)
+	  (ftp-log "Failed to initgroups (~a)~%" c)
+	  (outline "421 Local configuration error.")
+	  (return :quit)))
       
-      (if (not (= 0 (seteuid (pwent-uid pwent))))
-	  (progn
-	    (ftp-log "Failed to seteuid(~D)~%" (pwent-uid pwent))
-	    (outline "421 Local configuration error.")
-	    (return :quit)))
+      (handler-case (seteuid (pwent-uid pwent))
+	(error (c)
+	  (ftp-log "Failed to seteuid(~D): ~a~%" (pwent-uid pwent) c)
+	  (outline "421 Local configuration error.")
+	  (return :quit)))
       
-      (if (null (ftp-chdir (pwent-dir pwent)))
-	  (progn
-	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
+      (when (null (ftp-chdir (pwent-dir pwent)))
+	(ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    
-	    ;; Anonymous/restricted users have no alternative
-	    (if (or (anonymous client) (restricted client))
-		(progn
-		  (outline "421 Local configuration error.")
-		  (return :quit)))
+	;; Anonymous/restricted users have no alternative
+	(when (or (anonymous client) (restricted client))
+	  (outline "421 Local configuration error.")
+	  (return :quit))
 	    
-	    (if (not (ftp-chdir "/"))
-		(progn
-		  (ftp-log "Failed to chdir(/)~%")
-		  (outline "421 Local configuration error.")
-		  (return :quit))
-	      (progn
-		(setf (pwent-dir pwent) "/")
-		(outline "230-No directory! Logging in with home=/")))))
+	(if* (not (ftp-chdir "/"))
+	   then (ftp-log "Failed to chdir(/)~%")
+		(outline "421 Local configuration error.")
+		(return :quit)
+	   else (setf (pwent-dir pwent) "/")
+		(outline "230-No directory! Logging in with home=/")))
 
       (setf (logged-in client) t)
       (cleanup-data-connection client) 
@@ -621,11 +551,11 @@
 	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    (outline "421 Local configuration error.")
 	    (return nil)))
-      (if (not (= 0 (chroot (pwent-dir pwent))))
-	  (progn
-	    (ftp-log "Failed to chroot(~A)~%" (pwent-dir pwent))
-	    (outline "421 Local configuration error.")
-	    (return nil)))
+      (handler-case (chroot (pwent-dir pwent))
+	(error (c)
+	  (ftp-log "Failed to chroot(~a): ~a~%" (pwent-dir pwent) c)
+	  (outline "421 Local configuration error.")
+	  (return nil)))
       (setf (pwent-dir pwent) "/")
       (setf (pwd client) "/")
       t)))
@@ -636,7 +566,7 @@
      (let ((,streamsym 
 	    (handler-case (open ,path ,@rest)
 	      (file-error (c)
-		(setf ,errsym (excl::file-error-errno c))
+		(setf ,errsym (excl::syscall-error-errno c))
 		nil))))
        (unwind-protect (progn ,@body)
 	 (if ,streamsym
@@ -687,10 +617,10 @@
 	    (return
 	      (progn
 		(ftp-log "Client from ~A tried to set PORT ~A:~A~%"
-			(socket:ipaddr-to-dotted 
-			 (socket:remote-host (client-sock client)))
-			(socket:ipaddr-to-dotted addr)
-			port)
+			 (socket:ipaddr-to-dotted 
+			  (socket:remote-host (client-sock client)))
+			 (socket:ipaddr-to-dotted addr)
+			 port)
 		(outline "500 Illegal PORT Command"))))
 	(cleanup-data-connection client)
 	(setf (dataport-addr client) addr)
@@ -703,20 +633,21 @@
   (cleanup-data-connection client)
   (let (port sock)
     (while (null sock)  
-	   ;; XXX -- this could theoretically loop forever.  Need a loop limiter
-	   (setf port (+ (car *pasvrange*)
-			 ;;  XXX -- (random) always returns the same sequence of numbers.
-			 ;; XXX -- need to seed it w/ some random data (/dev/urandom)
-			 (random (1+ (- (cdr *pasvrange*) (car *pasvrange*))))))
-	   (handler-case (setf sock (socket:make-socket
-				     :type :hiper
-				     :connect :passive
-				     :local-host *interface*
-				     :local-port port))
-	     (socket-error (c)
-	       (if (not (eq (stream-error-identifier c) :address-in-use))
-		   (signal c)
-		 nil))))
+      ;; XXX -- this could theoretically loop forever.  Need a loop limiter
+      (setf port
+	(+ (car *pasvrange*)
+	   ;;  XXX -- (random) always returns the same sequence of numbers.
+	   ;; XXX -- need to seed it w/ some random data (/dev/urandom)
+	   (random (1+ (- (cdr *pasvrange*) (car *pasvrange*))))))
+      (handler-case (setf sock (socket:make-socket
+				:type :hiper
+				:connect :passive
+				:local-host *interface*
+				:local-port port))
+	(socket-error (c)
+	  (if (not (eq (stream-error-identifier c) :address-in-use))
+	      (signal c)
+	    nil))))
     (setf (pasv client) sock)
     (let ((addr (get-passive-ip-addr client)))
       (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D)"
@@ -822,12 +753,13 @@
 	  (if (not (= (socket:remote-host newsock)
 		      (socket:remote-host (client-sock client))))
 	      (progn
-		(ftp-log "Non-client connection to PASV port ~A:~A made by ~A.~%"
-			(socket:ipaddr-to-dotted 
-			 (socket:local-host (client-sock client)))
-			(socket:local-port (pasv client))
-			(socket:ipaddr-to-dotted
-			 (socket:remote-host newsock)))
+		(ftp-log
+		 "Non-client connection to PASV port ~A:~A made by ~A.~%"
+		 (socket:ipaddr-to-dotted 
+		  (socket:local-host (client-sock client)))
+		 (socket:local-port (pasv client))
+		 (socket:ipaddr-to-dotted
+		  (socket:remote-host newsock)))
 		(ignore-errors (close newsock)))
 	    (return newsock))))))
 
@@ -913,13 +845,15 @@
       (setf extlen (length ext))
       (if (and (> pathlen extlen)
 	       (string= (subseq path (- pathlen extlen)) ext))
-	  (return (values (cdr extcons) (subseq path 0 (- pathlen extlen))))))))
+	  (return (values (cdr extcons)
+			  (subseq path 0 (- pathlen extlen))))))))
 
 (defun start-conversion (client conversionvec file)
   (block nil
     (if (not (eq (client-type client) :image))
 	(return 
-	  (outline "550 This is a BINARY file, using ASCII mode to transfer will corrupt it.")))
+	  (outline "~
+550 This is a BINARY file, using ASCII mode to transfer will corrupt it.")))
     (if (not (= 0 (client-restart client)))
 	(return
 	  (outline "550 REST not allowed with conversions.")))
@@ -1055,7 +989,8 @@
 	       (error (c)
 		 (let ((*print-pretty* nil))
 		   (outline "426 Error: ~A"
-			    (substitute #\space #\newline (format nil "~A" c))))
+			    (substitute #\space #\newline
+					(format nil "~A" c))))
 		 nil))
 	     (outline "226 Transfer complete."))
 
@@ -1158,7 +1093,7 @@
 	   (name (subseq path 1 slashpos))
 	   (dir (if (string= name "")
 		    (pwent-dir (pwent client))
-		  (let ((pwent (get-pwent-by-name name)))
+		  (let ((pwent (getpwnam name)))
 		    (if (null pwent)
 			(return nil)
 		      (pwent-dir pwent))))))
@@ -1425,7 +1360,7 @@
 	(file-error (c)
 	  (return 
 	    (outline "550 ~A: ~A." newdir 
-		     (strerror (excl::file-error-errno c))))))
+		     (strerror (excl::syscall-error-errno c))))))
       
       (outline "257 ~S new directory created." fullpath))))
 	       
@@ -1461,8 +1396,6 @@
     (if (not (= 0 i))
 	(outline ""))
     (outline "214 Enjoy.")))
-
-
 
 (defun cmd-mdtm (client file)
   (block nil
@@ -1572,9 +1505,11 @@
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
       
-      (if (not (= 0 (rename (rename-from client) to)))
-	  (outline "550 rename: Operation failed.")
-	(outline "250 RNTO command successful."))
+      (handler-case
+	  (when (rename (rename-from client) to)
+	    (outline "250 RNTO command successful."))
+	(error ()
+	  (outline "550 rename: Operation failed.")))
       
       (setf (rename-from client) nil))))
 
@@ -1617,9 +1552,8 @@
 	  (return
 	    (outline "501 CHMOD: Mode value must be between 0 and 0777")))
       
-      (if (not (= 0 (chmod file mode)))
-	  (return
-	    (outline "550 ~A: Operation failed." file)))
+      (handler-case (chmod file mode)
+	(error () (return (outline "550 ~A: Operation failed." file))))
       
       (outline "200 CHMOD command successful."))))
 
@@ -1647,24 +1581,15 @@
 
 ;;;  Logging
 
-(defun ctime (time &key strip-newline)
-  (let ((ptime (ff:allocate-fobject :unsigned-int :foreign-static-gc)))
-    (setf (ff:fslot-value ptime) time)
-    (let ((res (without-interrupts (native-to-string (unix-ctime ptime)))))
-      (if strip-newline
-	  (subseq res 0 (1- (length res)))
-	res))))
-
 (defun ftp-log (&rest args)
-  (util.posix-lock:with-stream-lock (*logstream*)
+  (with-stream-lock (*logstream*)
     (file-position *logstream* :end)
     (format *logstream* "~A [~D]: ~?"
-	    (ctime (unix-time 0) :strip-newline t)
+	    (ctime)
 	    (getpid)
 	    (first args)
 	    (rest args))
     (force-output *logstream*)))
-
 
 (defun open-logs ()
   (setf *logstream*
@@ -1689,7 +1614,7 @@
 	(close *xferlogstream*))))
 
 (defun xfer-log (client fullpath direction bytes)
-  (util.posix-lock:with-stream-lock (*xferlogstream*)
+  (with-stream-lock (*xferlogstream*)
     (file-position *xferlogstream* :end)
     (format *xferlogstream* 
 	    "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"
@@ -1702,123 +1627,64 @@
 		(anonymous client)
 	      (user client))
 	    (socket:ipaddr-to-dotted (socket:remote-host (client-sock client)))
-	    (ctime (unix-time 0) :strip-newline t))
+	    (ctime))
     (force-output *xferlogstream*)))
   
 ;;;;;;;;;
-(defun main (&rest args)
-  (block nil
-    #-(version>= 6 1)
-    (error "aFTPd only works on ACL 6.1 or later.")
 
-    (let ((configfile (get-opt "-f" args :param t)))
-      (if configfile
-	  (progn
-	    (setf *configfile* configfile)
-	    (if (not (probe-file *configfile*))
-		(error "Config file ~A does not exist." *configfile*)))))
+(defvar *usage*
+  (format nil "~
+Usage: aftpd [-f config_file_path] [-p port] [-d]
+  Use -f to specify an alternate config file (default ~A).
+  Use -p to specify an alternate FTP port.
+  Use -d to start aftpd in debug mode.
+Note: -p and -f override any setting in the config file.~%~%"
+	  *configfile*))
+
+(defun usage ()
+  (format *error-output* "~a" *usage*)
+  (exit -1 :quiet t))
+
+(defun main (&rest args)
+  #-(version>= 6 1)
+  (error "aFTPd only works on ACL 6.1 or later.")
+  (system:with-command-line-arguments
+      ("I:df:p:" image debug-mode configfile ftpport)
+      (rest :usage *usage*)
+    (declare (ignore image))
+    (when configfile
+      (when (not (probe-file configfile))
+	(error "Config file ~a does not exist." configfile))
+      (setq *configfile* configfile))
 
     (load-config-file)
-
-    (if (get-opt "-d" args)
-	(setf *debug* t))
     
-    (let ((ftpport (get-opt "-p" args :param t :numeric t)))
-      (if ftpport
-	  (setf *ftpport* ftpport)))
+    (when debug-mode (setq *debug* t))
+    (when ftpport (setq *ftpport* ftpport))
+    (when rest (usage))
 
     (open-logs)
 
-    (if (not *debug*)
-	(with-fork pid
-	  ;; parent form
-	  (return 0)
-	  ;; child form
-	  (progn
-	    (ftp-chdir "/")
-	    (disassociate))))
-    
+    (when (not *debug*)
+      (with-fork pid
+	;; parent form
+	(return-from main 0)
+	;; child form
+	(progn
+	  (ftp-chdir "/")
+	  (detach-from-terminal :output-stream *logstream*
+				:error-output-stream *logstream*))))
+
     (ftp-log "FTP server started.~%")
     (standalone-main)))
 
-(defun get-opt (switch args &key param numeric)
-  (block nil
-    (let* ((switchpos (position switch args :test #'string=))
-	   (argslen (length args))
-	   (maxpos (1- argslen)))
-      (if (null switchpos)
-	  (return nil))
-      (if (null param)
-	  (return t))
-      (if (= switchpos maxpos)
-	  (usage))
-      (let ((res (nth (1+ switchpos) args)))
-	(if (null numeric)
-	    (return res))
-	(setf res (ignore-errors (parse-integer res)))
-	(if (null res)
-	    (usage))
-	res))))
-
-(defun usage ()
-  (format t "Usage: aftpd [-f config_file_path] [-p port] [-d]~%")
-  (format t "  Use -f to specify an alternate config file (default ~A).~%"
-	  *configfile*)
-  (format t "  Use -p to specify an alternate FTP port.~%")
-  (format t "  Use -d to start aftpd in debug mode.~%")
-  (format t "~%Note: -p and -f override any setting in the config file.~%~%")
-  (exit t :quiet t))
-
-#+linux
-(defconstant TIOCNOTTY #x00005422)
-#+solaris2 
-(defconstant TIOCNOTTY #x00007471)
-
-(defconstant O_RDWR #x00000002) ;; Linux and Solaris
-
-#-(or linux solaris2)
-(error "Platform not supported.")
-
-
-(defmacro with-unix-open ((fd path flags) &body body)
-  `(let ((,fd (unix-open ,path ,flags 0)))
-     (unwind-protect (progn ,@body)
-       (if (>= ,fd 0)
-	   (unix-close ,fd)))))
-
-;; I believe this will work w/ both SYSV and BSD (as long as the
-;; constants are correct)
-(defun disassociate ()
-  (set-process-group)
-  (with-unix-open (fd "/dev/tty" O_RDWR)
-   (if (>= fd 0)
-       (ioctl fd TIOCNOTTY 0)))
-  
-  (with-unix-open (nullfd "/dev/null" O_RDWR)
-    (let ((diagfd (if *logstream* (stream-output-fn *logstream*) nullfd)))
-      (dup2 nullfd 0) ;; stdin is now /dev/null
-      (dup2 diagfd 1) ;; stdout and stderr use either the logfile
-      (dup2 diagfd 2)))) ;; (if it's open) or /dev/null
-
-
-;;; setpgrp always succeeds in solaris.
-(defun set-process-group ()
-  #+solaris2
-  (setpgrp)
-  #+linux
-  (if (not (= 0 (setpgrp)))
-      (error "Failed to setpgrp"))
-  )
-  
 (defun load-config-file ()
-  (if (probe-file *configfile*)
-      (load *configfile*))
+  (when (probe-file *configfile*)
+    (load *configfile* :verbose nil))
   (dolist (addr *pasvipaddrs*)
-    (if* (not (network-address-p (car addr)))
-       then
-	    (setf (car addr) (parse-addr (car addr)))
-	    (setf (cdr addr) (socket:dotted-to-ipaddr (cdr addr))))))
-
+    (when (not (network-address-p (car addr)))
+      (setf (car addr) (parse-addr (car addr)))
+      (setf (cdr addr) (socket:dotted-to-ipaddr (cdr addr))))))
 
 ;;;;;;;;;
 
@@ -1830,7 +1696,4 @@
     (setf files (append files '(:srecord :locale))) ;; add modules here
     (setq files (cons "config.cl" files))
     (compile-file-if-needed "ftpd.cl")
-    (generate-executable 
-     "aftpd" 
-     files)))
-
+    (generate-executable "aftpd" files)))
