@@ -1,4 +1,11 @@
-;; $Id: ftpd.cl,v 1.23 2002/09/16 20:52:39 layer Exp $
+;; This software is Copyright (c) Franz Inc., 2001-2002.
+;; Franz Inc. grants you the rights to distribute
+;; and use this software as governed by the terms
+;; of the Lisp Lesser GNU Public License
+;; (http://opensource.franz.com/preamble.html),
+;; known as the LLGPL.
+;;
+;; $Id: ftpd.cl,v 1.24 2002/09/16 21:31:24 layer Exp $
 
 (in-package :user)
 
