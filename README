@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: README,v 1.12 2002/09/16 21:40:30 dancy Exp $
+$Id: README,v 1.13 2002/09/16 21:49:24 layer Exp $
 
 *******************************************************************************
 1. Installation
@@ -23,10 +23,14 @@ You can either build aFTPd from sources or use the binaries built by
 Franz Inc.  If you want to build your own, then you must have Allegro
 Common Lisp Enterprise Edition.
 
-TODO/layer: insert discussion of deployment w/Enterprise here
-
 *******************************************************************************
 1A. Installation: from source code
+
+The source code to aFTPd is licensed under the terms of the Lisp
+Lesser GNU Public License (http://opensource.franz.com/preamble.html),
+known as the LLGPL.  The LLGPL consists of a preamble (see above URL)
+and the LGPL.  Where these conflict, the preamble takes precedence.
+aFTPd is referenced in the preamble as the "LIBRARY."
 
 Download and unpack the source code.  Then, startup Allegro CL
 Enterprise and type, in the directory containing the source code:

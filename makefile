@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.5 2002/09/16 21:40:30 dancy Exp $
+# $Id: makefile,v 1.6 2002/09/16 21:49:24 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -25,7 +25,7 @@ linux solaris: clean default
 
 SOURCE_FILES = ChangeLog README binary-license.txt config.cl eol.cl \
 	ftpd.cl ipaddr.cl makefile passwd.cl posix-lock.cl rfc0959.txt \
-	system-constants.c
+	system-constants.c S99aftpd aftpd.init
 
 src: FORCE
 	gtar zcf aftpd-$(version)-src.tgz $(SOURCE_FILES)
@@ -37,7 +37,7 @@ install-common: FORCE
 	rm -fr $(INSTALLDIR)/aftpd
 	mkdir -p $(INSTALLDIR)
 	cp -pr aftpd $(INSTALLDIR)
-	
+
 install-linux: install-common
 	cp -p aftpd.init /etc/init.d/aftpd
 	/sbin/chkconfig aftpd reset
