@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.10 2002/09/17 21:52:10 layer Exp $
+# $Id: makefile,v 1.11 2002/09/17 22:03:01 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -18,6 +18,8 @@ default: FORCE
 	echo '(build)' >> build.tmp
 	mlisp-6.2 -batch -q -L build.tmp -kill
 	cp -p makefile aftpd
+	cp -p S99aftpd aftpd
+	cp -p aftpd.init aftpd
 	cp -p readme.txt aftpd
 	cp -p binary-license.txt aftpd
 
