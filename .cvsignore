@@ -1,5 +1,6 @@
 *.fasl
-aftpd.sh
 aftpd
+aftpd.sh
 autoloads.out
+build.tmp
 system-constants
