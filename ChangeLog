@@ -1,6 +1,23 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-11-14  Ahmon Dancy  <dancy@dancy>
+1.0.19
+	
+	* ftpd.cl: Added finish-output call in write-complete-vector so
+	that calls to socket-bytes-written count will return proper
+	information (when logging to the xferlog).
+	* ftpd.cl: The open-logs function now uses :always-append when
+	opening/creating the regular log and the xfer log.
+	Moved the ftp-log function down closer to the xfer-log
+	function.  
+	Removed the with-stream-lock stuff around ftp-log and xfer-log
+	since they are no longer needed now that the files are opened with
+	:always-append.
+
+	* ftpd.cl: Reworked NLST once more to handle all the edge cases.
+	It should be pretty compatible w/ wu-ftpd now.
+	
 2002-11-12  Kevin Layer  <layer@crikey>
 1.0.18
 

@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.30 2002/11/12 18:34:32 layer Exp $
+;; $Id: ftpd.cl,v 1.31 2002/11/20 22:55:29 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.18")
+(defvar *ftpd-version* "1.0.19")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -925,7 +925,8 @@
 	   (setf newpos (write-vector vec stream :start pos :end end))
 	   (if (= newpos pos)
 	       (error "write-vector failed"))
-	   (setf pos newpos))))
+	   (setf pos newpos)
+	   (finish-output stream))))
       
 
 (defun cmd-stor (client file)
@@ -1215,31 +1216,67 @@
     (setf cwd (concatenate 'string cwd "/")))
   (enough-namestring path cwd))
   
-  
-(defun directory-contents-without-subdirs (dir cwd)
+
+;; excludes directories and hidden files 
+(defun nlst-directory-contents (dir cwd)
   (let (res)
     (dolist (p (directory (concatenate 'string dir "/")))
-      (if (not (file-directory-p p))
+      (if (and (not (file-directory-p p))
+	       (not (hidden-file-p p)))
 	  (push (ftp-enough-namestring p cwd) res)))
     (reverse res)))
+
+(defun hidden-file-p (pathname)
+  (char= #\. (schar (pathname-name pathname) 0)))
+
+;;; new rules for being similar to wu-ftpd in most situations:
+;;; 0) [just a note].  A client can either have switches or 
+;;     wildcards in the filespec, but not both.  If both are supplied,
+;;     the wildcards take precedence.
+;;; 1) Map '*', '.' and blank names all to the full listing of the
+;;;    current directory. 
+;;; 2) Check for wildcard chars in the name (*, [], ?).  If found,
+;;;    glob the wildcard, excluding any directory matches.
+;;;    Dump the results.
+;;; 3) Check for an exact match on the name.  If it exists, dump the
+;;;    file or directory (for directories, exclude dot files and 
+;;;    subdirectories)
+;;; 4) If the filespec begins w/ a dash, pass the entire thing to /bin/ls.
+;;     This should be handled securely with list-common.
+;;  5) Complain about no match.
 
 (defun cmd-nlst (client path)
   (block nil
     (let ((fullpath (make-full-path (pwd client) path))
 	  listing)
-      (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
-      (cond 
-       ((file-directory-p fullpath)
-	(setf listing (directory-contents-without-subdirs 
-		       fullpath (pwd client))))
-       ((probe-file fullpath)
-	(setf listing (list (ftp-enough-namestring fullpath (pwd client)))))
-       (t
+      (if (or (string= path "*") (string= path "."))
+	  (setf path ""))
+      (cond
+       ((string= path "")
+	(setf listing (nlst-directory-contents (pwd client) (pwd client))))
+
+       ((has-wildcard-p path)
+	(if (and (restricted client) (out-of-bounds-p client fullpath))
+	    (return (outline "550 ~A: Permission denied." path)))
 	(setf listing 
 	  (mapcar #'(lambda (path) (ftp-enough-namestring path (pwd client)))
-		  (remove-if #'file-directory-p 
-			     (glob-single fullpath (pwd client)))))))
+		  (coerce (remove-if #'file-directory-p 
+				     (glob-single fullpath (pwd client)
+						  :null-okay t))
+			  'list))))
+
+       ((probe-file fullpath)
+	(if (and (restricted client) (out-of-bounds-p client fullpath))
+	    (return (outline "550 ~A: Permission denied." path)))
+	(if (file-directory-p fullpath)
+	    (setf listing 
+	      (nlst-directory-contents fullpath (pwd client)))
+	  (setf listing 
+	    (list (ftp-enough-namestring fullpath (pwd client))))))
+       
+       ((char= #\- (schar path 0))
+	(return (list-common client path #()))))
+	
       (if (null listing)
 	  (return (outline "550 No files found.")))
       
@@ -1249,7 +1286,7 @@
       (if (null (establish-data-connection client))
 	  (return))
       
-      (outline "150 Opening ASCII mode data connection for /bin/ls.")
+      (outline "150 Opening ASCII mode data connection for file list.")
 	
       (let ((*outlinestream* (dataport-sock client)))
 	(dolist (path listing)
@@ -1448,13 +1485,13 @@
       (position #\? string)
       (position #\[ string)))
 
-(defun glob-single (patt pwd)
+(defun glob-single (patt pwd &key null-okay)
   (let ((bigpatt (make-full-path pwd patt)))
     (if (not (has-wildcard-p patt))
 	(vector patt)
       (let ((matches (directory bigpatt)))
 	(if (null matches)
-	    (vector patt)
+	    (if null-okay #() (vector patt))
 	  (mapcar #'enough-namestring matches))))))
 
 (defun cmd-size (client file)
@@ -1576,31 +1613,21 @@
 
 ;;;  Logging
 
-(defun ftp-log (&rest args)
-  (with-stream-lock (*logstream*)
-    (file-position *logstream* :end)
-    (format *logstream* "~A [~D]: ~?"
-	    (ctime)
-	    (getpid)
-	    (first args)
-	    (rest args))
-    (force-output *logstream*)))
-
 (defun open-logs ()
   (setf *logstream*
     (if *debug*
 	*standard-output*
       (open *logfile*
 	    :direction :output
-	    :if-does-not-exist :create
-	    :if-exists :append)))
+	    :if-does-not-exist :always-append
+	    :if-exists :always-append)))
   (setf *xferlogstream*
     (if *debug*
 	*standard-output*
       (open *xferlog*
 	    :direction :output
-	    :if-does-not-exist :create
-	    :if-exists :append))))
+	    :if-does-not-exist :always-append
+	    :if-exists :always-append))))
   
 (defun close-logs ()
   (if (not *debug*)
@@ -1608,22 +1635,28 @@
 	(close *logstream*)
 	(close *xferlogstream*))))
 
+(defun ftp-log (&rest args)
+  (format *logstream* "~A [~D]: ~?"
+	  (ctime)
+	  (getpid)
+	  (first args)
+	  (rest args))
+  (force-output *logstream*))
+
 (defun xfer-log (client fullpath direction bytes)
-  (with-stream-lock (*xferlogstream*)
-    (file-position *xferlogstream* :end)
-    (format *xferlogstream* 
-	    "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"
-	    (get-universal-time)
-	    (socket:remote-host (client-sock client))
-	    fullpath
-	    direction
-	    bytes
-	    (if (anonymous client)
-		(anonymous client)
-	      (user client))
-	    (socket:ipaddr-to-dotted (socket:remote-host (client-sock client)))
-	    (ctime))
-    (force-output *xferlogstream*)))
+  (format *xferlogstream* 
+	  "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"
+	  (get-universal-time)
+	  (socket:remote-host (client-sock client))
+	  fullpath
+	  direction
+	  bytes
+	  (if (anonymous client)
+	      (anonymous client)
+	    (user client))
+	  (socket:ipaddr-to-dotted (socket:remote-host (client-sock client)))
+	  (ctime))
+  (force-output *xferlogstream*))
   
 ;;;;;;;;;
 
