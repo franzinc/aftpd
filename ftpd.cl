@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.10 2001/12/11 16:47:57 dancy Exp $
+;; $Id: ftpd.cl,v 1.11 2001/12/11 19:14:50 dancy Exp $
 
 (in-package :user)
 
@@ -94,15 +94,16 @@
 		     :returning :int)
 (ff:def-foreign-call ioctl () :strings-convert t :returning :int)
 
+;; add to a unix time to get a universal time.
+;; subtract from a universal time to get a unix time.
+(defconstant *unix-time-to-universal-time* 2208988800)
 
 (eval-when (compile)
   (compile-file-if-needed "getpwnam.cl")
-  (compile-file-if-needed "stat.cl")
   (compile-file-if-needed "eol.cl"))
 
 (eval-when (compile load eval)
   (load "getpwnam.fasl")
-  (load "stat.fasl")
   (load "eol.fasl")
   (require :acldns))
 
@@ -815,13 +816,10 @@
 	 (setf (client-restart client) 0)
 	 (if (null res)
 	     (return (outline "550 ~A: RETR (with REST) failed." file))))
-       (let ((stat (ignore-errors (stat file))))
-	 (if (null stat)
-	     (return (outline "550 ~A: RETR failed." file)))
-	 (if (not (S_ISREG (stat-mode stat)))
-	     (return (outline "550 ~A: not a plain file." file)))
-	 
-	 (transmit-stream client f fullpath))))))
+       (if (not (eq :file (excl::filesys-type fullpath)))
+	   (return (outline "550 ~A: not a plain file." file)))	   
+		    
+       (transmit-stream client f fullpath)))))
     
 ;; This should be called after 'path' has been verified not to exist.
 (defun conversion-match (path)
@@ -1355,10 +1353,11 @@
 	(outline ""))
     (outline "214 Enjoy.")))
 
+
+
 (defun cmd-mdtm (client file)
   (block nil
-    (let ((fullpath (make-full-path (pwd client) file))
-	  stat)
+    (let ((fullpath (make-full-path (pwd client) file)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
@@ -1366,15 +1365,12 @@
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
       
-      (setf stat (ignore-errors (stat file)))
-      
-      (if (null stat)
-	  (return (outline "550 ~A: Command failed." file)))
-      
-      (if (not (S_ISREG (stat-mode stat)))
+      (if (not (eq :file (excl::filesys-type file)))
 	  (return (outline "550 ~A: not a plain file." file)))
       
-      (outline "213 ~A" (make-mdtm-string (stat-mtime stat))))))
+      (outline "213 ~A" 
+	       (make-mdtm-string 
+		(- (file-write-date fullpath) *unix-time-to-universal-time*))))))
 
 ;; YYYYMMDDhhmmss
 (defun make-mdtm-string (mtime)
@@ -1452,24 +1448,18 @@
     
 (defun cmd-size (client file)
   (block nil
-    (let ((fullpath (make-full-path (pwd client) file))
-	  stat)
+    (let ((fullpath (make-full-path (pwd client) file)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
       
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." file)))
-      
-      (setf stat (ignore-errors (stat file)))
-      
-      (if (null stat)
-	  (return (outline "550 ~A: Command failed." file)))
-      
-      (if (not (S_ISREG (stat-mode stat)))
+
+      (if (not (eq :file (excl::filesys-type fullpath)))
 	  (return (outline "550 ~A: not a plain file." file)))
       
-      (outline "213 ~D" (stat-size stat)))))
+      (outline "213 ~D" (file-length fullpath)))))
 
 (defun cmd-rnfr (client from)
   (block nil
@@ -1673,5 +1663,5 @@
   (compile-file-if-needed "ftpd.cl")
   (generate-executable 
    "aftpd" 
-   '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl"
+   '("ftpd.fasl" "getpwnam.fasl" "eol.fasl"
      :srecord)))

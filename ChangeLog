@@ -1,5 +1,10 @@
 2001-12-11  Ahmon Dancy  <dancy@dancy>
 
+	* ftpd.cl:  Removed dependency on stat.cl.  Changed stuff over to
+	use excl::filesys- and other built-in stuff.  
+
+	* stat.cl: Removed
+
 	* ftpd.cl:  Make sure that the anonymous ftp account actually
 	exists before allowing an anonymous login.
 
