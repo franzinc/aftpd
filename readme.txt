@@ -11,7 +11,7 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: README,v 1.13 2002/09/16 21:49:24 layer Exp $
+$Id: readme.txt,v 1.1 2002/09/17 17:13:33 layer Exp $
 
 *******************************************************************************
 1. Installation
