@@ -2,7 +2,8 @@
 *** [and leave this message at the top of the file]
 
 2002-09-16  Kevin Layer  <layer@crikey>
-no version change
+
+	* makefile: add `linux' and `solaris' rules
 
 	* (NEW) binary-license.txt
 	* (NEW) makefile
