@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.6 2002/09/16 21:49:24 layer Exp $
+# $Id: makefile,v 1.7 2002/09/17 17:06:21 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -28,7 +28,9 @@ SOURCE_FILES = ChangeLog README binary-license.txt config.cl eol.cl \
 	system-constants.c S99aftpd aftpd.init
 
 src: FORCE
-	gtar zcf aftpd-$(version)-src.tgz $(SOURCE_FILES)
+	mkdir aftpd-$(version)
+	cp -p $(SOURCE_FILES) aftpd-$(version)
+	gtar zcf aftpd-$(version)-src.tgz aftpd-$(version)
 
 clean: FORCE
 	rm -fr aftpd *.fasl autoloads.out

@@ -1,6 +1,10 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-09-17  Kevin Layer  <layer@crikey>
+
+	* makefile: put files in src arching in aftpd-<version> directory
+
 2002-09-16  Kevin Layer  <layer@crikey>
 
 	* README: moretweaks, ready for release
