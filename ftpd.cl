@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.7 2001/12/08 17:28:52 dancy Exp $
+;; $Id: ftpd.cl,v 1.8 2001/12/08 20:04:08 dancy Exp $
 
 (in-package :user)
 
@@ -24,6 +24,7 @@
 (defparameter *anonymous-ftp-names* '("ftp" "anonymous"))
 (defparameter *anonymous-ftp-account* "ftp")
 (defparameter *restricted-users* nil)
+(defparameter *unrestricted-users* nil)
 (defparameter *welcome-msg-file* "welcome.msg")
 (defparameter *message-file* ".message")
 (defparameter *quarantine-anonymous-uploads* t)
@@ -350,6 +351,8 @@
 		    (setf lastchar char))))))))
 
 (defun ftpd-main (sock)
+  (if (probe-file *configfile*)
+      (load *configfile*))
   (open-log)
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
@@ -488,11 +491,22 @@
       (ftp-log "User ~A logged in.~%" (user client))
       (setf (pwd client) (pwent-dir pwent))
 
-      (if (anonymous client)
-	  (anonymous-setup client))
-
-      (if (member (user client) *restricted-users* :test #'string=)
-	  (setf (restricted client) t))
+      (if* (anonymous client)
+	 then
+	      (anonymous-setup client)
+	 else
+	      ;; If *restricted-users* is 't', then all users are restricted except for those
+	      ;; in the *unrestricted-users* list.   Otherwise, a user is restricted if he/she
+	      ;; is listed in *restricted-users*.
+	      
+	      (if* (eq *restricted-users* t)
+		 then
+		      (if (member (user client) *unrestricted-users* :test #'string=)
+			  (setf (restricted client) nil)
+			(setf (restricted client) t))
+		 else
+		      (if (member (user client) *restricted-users* :test #'string=)
+			  (setf (restricted client) t))))
       
       ;; Set up
       (if (not (= 0 (setgid (pwent-gid pwent))))
@@ -1061,30 +1075,63 @@
       (if (null slashpos)
 	  dir
 	(concatenate 'string dir (subseq path slashpos))))))
-  
-(defun make-full-path (pwd path)
+
+(defun absolute-path-p (path)
+  (and (not (string= path ""))
+       (char= (schar path 0) #\/)))
+
+(defun ensure-absolute-path (path)
+  (if (not (absolute-path-p path))
+      (error "path must be absolute!")))
+
+(defun strip-trailing-slash (path)
+  (if (string= path "/")
+      "/"
+    (replace-regexp path "^\\(.*\\)/$" "\\1")))
+
+;; / ->  nil
+;; /a -> (a)
+;; /a/b -> (a b)
+;; /a/b/ -> (a b)
+;; Requires absolute path.
+(defun path-to-list (path)
   (block nil
-    (if (char= (schar path 0) #\/)
-	(if (and (not (string= path "/"))
-		 (char= (schar path (1- (length path))) #\/))
-	    (return (subseq path 0 (1- (length path))))
-	  (return path)))
-    (let ((pwd (if (string= pwd "/") 
-		   '("")
-		 (reverse (delimited-string-to-list pwd #\/))))
-	  (path (delimited-string-to-list path #\/)))
+    (if (string= path "/")
+	(return nil))
+    (ensure-absolute-path path)
+    (setf path (strip-trailing-slash path))
+    (delimited-string-to-list (subseq path 1) #\/)))
+
+;; handles . and .. and removes redundant slashes.
+;; 'path' should be an absolute path
+(defun canonicalize-path (path)
+  (block nil
+    (if (string= path "/")
+	(return "/"))
+    (setf path (path-to-list path))
+    (let (res)
       (dolist (comp path)
 	(cond
-	 ((or (string= comp "") (string= comp "."))
-	  ) ;; do nothing
+	 ((or (string= comp ".") (string= comp ""))
+	  )
 	 ((string= comp "..")
-	  (if (string= (pop pwd) "")
-	      (setf pwd '(""))))
+	  (pop res))
 	 (t
-	  (push comp pwd))))
-      (if (equalp pwd '(""))
-	  "/"
-	(list-to-delimited-string (reverse pwd) #\/)))))
+	  (push comp res))))
+      (setf res (reverse res))
+      (if (null res)
+	  (return "/"))
+      (concatenate 'string "/" (list-to-delimited-string res #\/)))))
+
+
+(defun make-full-path (pwd path)
+  (block nil
+    (if (absolute-path-p path)
+	(return (canonicalize-path path)))
+    (setf pwd (strip-trailing-slash pwd))
+    (canonicalize-path
+     (concatenate 'string
+       pwd "/" path))))
 
 ;; /home/dir/ is within /home/dir.
 ;; 'parent' should not have a trailing slash.
@@ -1096,7 +1143,7 @@
     (if (string= dir "/")
 	(return nil)) ;; root dir isn't within anything else
     ;; strip trailing slash if there is one
-    (setf dir (replace-regexp dir "^\\(.*\\)/$" "\\1"))
+    (setf dir (strip-trailing-slash dir))
     (let ((parentlen (length parent))
 	  (dirlen (length dir)))
       (if (< dirlen parentlen)
@@ -1595,4 +1642,3 @@
    "aftpd" 
    '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl"
      :srecord)))
-

@@ -1,5 +1,13 @@
 2001-12-08  Ahmon Dancy  <dancy@dancy>
 
+	* Enhanced the *restricted-users* stuff.  If it's 't' everyone is
+	restricted except for those users listed in *unrestricted-users*.
+
+	* Rewrote make-full-path since it was missing some situations.
+
+	* The config file is now reloaded for each new connection so that
+	changes can be made on the fly.
+
 	* Added *logfile* and it's workings.  
 
 	* Process forks and disassociates from the controlling terminal
