@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.33 2002/12/13 17:56:26 dancy Exp $
+;; $Id: ftpd.cl,v 1.34 2002/12/19 18:16:34 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.21")
+(defvar *ftpd-version* "1.0.22")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -1693,6 +1693,8 @@ Note: -p and -f override any setting in the config file.~%~%"
     (when ftpport (setq *ftpport* ftpport))
     (when rest (usage))
 
+    (setf socket:*print-hostname-in-stream* nil)
+    
     (open-logs)
 
     (when (not *debug*)

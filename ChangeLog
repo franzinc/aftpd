@@ -1,6 +1,13 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-12-19  Ahmon Dancy  <dancy@dancy>
+1.0.22
+	
+	* ftpd.cl:  setf socket:*print-hostname-in-stream* to nil to see
+	if hung process problem goes away.
+
+	
 2002-12-18  Kevin Layer  <layer@crikey>
 <no version change, just doc changes>
 
