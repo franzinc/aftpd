@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.13 2001/12/19 19:36:15 dancy Exp $
+;; $Id: ftpd.cl,v 1.14 2001/12/19 23:36:26 dancy Exp $
 
 (in-package :user)
 
@@ -808,6 +808,20 @@
   (or (dataport-addr client)
       (pasv client)))
 
+(defun cleanup-data-connection (client)
+  (if (dataport-open client)
+      (progn
+	(ignore-errors (close (dataport-sock client)))
+	(setf (dataport-sock client) nil)
+	(setf (dataport-open client) nil)))
+  (if (pasv client)
+      (progn
+	(ignore-errors (close (pasv client)))
+	(setf (pasv client) nil)))
+  (setf (dataport-addr client) nil)
+  (setf (dataport-port client) nil))
+
+
 ;; Drops connections made by other hosts.
 (defun accept-pasv-connection-from-client (client)
   (loop
@@ -825,19 +839,18 @@
 		(ignore-errors (close newsock)))
 	    (return newsock))))))
     
-(defun cleanup-data-connection (client)
-  (if (dataport-open client)
-      (progn
-	(ignore-errors (close (dataport-sock client)))
-	(setf (dataport-sock client) nil)
-	(setf (dataport-open client) nil)))
-  (if (pasv client)
-      (progn
-	(ignore-errors (close (pasv client)))
-	(setf (pasv client) nil)))
-  (setf (dataport-addr client) nil)
-  (setf (dataport-port client) nil))
-
+(defun make-active-connection (client)
+  (handler-case 
+      (with-root-privs ()
+	(socket:make-socket :remote-host (dataport-addr client)
+			    :remote-port (dataport-port client)
+			    :local-host *interface*
+			    :local-port *ftpdataport* 
+			    :reuse-address t
+			    :type :hiper))
+    (error (c)
+      (ftp-log "make-active-connection: make-socket failed; ~A~%" c)
+      nil)))
 
 (defun establish-data-connection (client)
   (block nil
@@ -845,13 +858,7 @@
       (mp:with-timeout (*connecttimeout* :timeout)
 	(if (pasv client)
 	    (accept-pasv-connection-from-client client)
-	  (ignore-errors 
-	   (with-root-privs ()
-	     (socket:make-socket :remote-host (dataport-addr client)
-				 :remote-port (dataport-port client)
-				 :local-host *interface*
-				 :local-port *ftpdataport* 
-				 :type :hiper))))))
+	  (make-active-connection client))))
     (if (null (dataport-sock client))
 	(progn
 	  (outline "425 Can't open data connection.")

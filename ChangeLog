@@ -1,5 +1,9 @@
 2001-12-19  Ahmon Dancy  <dancy@dancy>
 
+	* ftpd.cl: Added make-active-connection function to make a
+	PORT-based connection which will log errors.
+	establish-data-connection uses this now.
+
 	* ftpd.cl:
 	Added *ftpdataport* parameter.  Defaults to 20 and will likely
 	never be changed by anyone.
