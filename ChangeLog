@@ -1,3 +1,13 @@
+2001-12-10  Ahmon Dancy  <dancy@dancy>
+
+	* Added *xferlog* parameter which specifies the location of the
+	transfer log file.  Added code to do xferlog logging.  The log has
+	the following format:
+
+	(universal-time numeric-ip-address file direction bytes user)
+
+	If *debug* is non-nill, the xferlog goes to stdout.	
+	
 2001-12-08  Ahmon Dancy  <dancy@dancy>
 
 	* Enhanced the *restricted-users* stuff.  If it's 't' everyone is

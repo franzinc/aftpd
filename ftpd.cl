@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.8 2001/12/08 20:04:08 dancy Exp $
+;; $Id: ftpd.cl,v 1.9 2001/12/10 18:40:49 dancy Exp $
 
 (in-package :user)
 
@@ -8,6 +8,7 @@
 (defparameter *configfile* "/etc/aftpd.cl")
 
 (defparameter *logfile* "/var/log/ftp")
+(defparameter *xferlog* "/var/log/xferlog")
 
 (defparameter *ftpport* 21)
 ;; Control channel timeout
@@ -213,6 +214,7 @@
       ("umask" . site-umask)))
 
 (defparameter *logstream* nil)
+(defparameter *xferlogstream* nil)
 
 (defun standalone-main ()
   (let ((serv (socket:make-socket :connect :passive 
@@ -353,7 +355,7 @@
 (defun ftpd-main (sock)
   (if (probe-file *configfile*)
       (load *configfile*))
-  (open-log)
+  (open-logs)
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
 	    (socket:remote-host sock)))
@@ -378,7 +380,7 @@
 	(ignore-errors (close sock)))
     (t (c)
       (ftp-log "Error: ~A~%" c)))
-  (close-log))
+  (close-logs))
   
 (defun dispatch-cmd (client cmdstring)
   (block nil
@@ -870,6 +872,9 @@
 		       (substitute #\space #\newline (format nil "~A" c))))
 	    nil))
 	(outline "226 Transfer complete."))
+
+    (xfer-log client name :retr 
+	      (excl::socket-bytes-written (dataport-sock client)))
     
     (cleanup-data-connection client)))
 
@@ -971,6 +976,9 @@
 			    (substitute #\space #\newline (format nil "~A" c))))
 		 nil))
 	     (outline "226 Transfer complete."))
+
+	 (xfer-log client fullpath :stor 
+		   (excl::socket-bytes-read (dataport-sock client)))
 	 
 	 (cleanup-data-connection client))))))
 
@@ -1581,19 +1589,43 @@
 	  (rest args))
   (force-output *logstream*))
 
-(defun open-log ()
+(defun open-logs ()
   (setf *logstream*
     (if *debug*
 	*standard-output*
       (open *logfile*
 	    :direction :output
 	    :if-does-not-exist :create
+	    :if-exists :append)))
+  (setf *xferlogstream*
+    (if *debug*
+	*standard-output*
+      (open *xferlog*
+	    :direction :output
+	    :if-does-not-exist :create
 	    :if-exists :append))))
 
-(defun close-log ()
+(defun close-logs ()
   (if (not *debug*)
-      (close *logstream*)))
+      (progn
+	(close *logstream*)
+	(close *xferlogstream*))))
 
+(defun xfer-log (client fullpath direction bytes)
+  (format *xferlogstream* 
+	  "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"
+	  (get-universal-time)
+	  (socket:remote-host (client-sock client))
+	  fullpath
+	  direction
+	  bytes
+	  (if (anonymous client)
+	      (anonymous client)
+	    (user client))
+	  (socket:ipaddr-to-dotted (socket:remote-host (client-sock client)))
+	  (ctime (unix-time 0) :strip-newline t))
+  (force-output *xferlogstream*))
+  
 ;;;;;;;;;
 (defun main (&rest args)
   (block nil
