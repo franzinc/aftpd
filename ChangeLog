@@ -2,6 +2,14 @@
 *** [and leave this message at the top of the file]
 
 2002-09-16  Kevin Layer  <layer@crikey>
+1.0.14
+
+	* README: tweaks
+	* ftpd.cl: load config.cl at app build time
+	* makefile: do away with binaries/, since it's not needed; add
+	`src' rule
+
+2002-09-16  Kevin Layer  <layer@crikey>
 
 	* makefile: add `linux' and `solaris' rules
 

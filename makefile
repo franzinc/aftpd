@@ -1,4 +1,4 @@
-# $Id: makefile,v 1.2 2002/09/16 18:29:02 layer Exp $
+# $Id: makefile,v 1.3 2002/09/16 20:52:39 layer Exp $
 
 default: FORCE
 	rm -f build.tmp
@@ -12,8 +12,14 @@ default: FORCE
 version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 
 linux solaris: clean default
-	mv aftpd/* binaries/$@/aftpd
-	gtar zcf aftpd-$@-$(version).tgz -C binaries/$@ aftpd
+	gtar zcf aftpd-$@-$(version).tgz aftpd
+
+SOURCE_FILES = ChangeLog README binary-license.txt config.cl eol.cl \
+	ftpd.cl ipaddr.cl makefile passwd.cl posix-lock.cl rfc0959.txt \
+	system-constants.c
+
+src: FORCE
+	gtar zcf aftpd-$(version)-src.tgz $(SOURCE_FILES)
 
 clean: FORCE
 	rm -fr aftpd *.fasl autoloads.out

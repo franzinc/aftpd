@@ -1,8 +1,8 @@
-;; $Id: ftpd.cl,v 1.22 2002/09/16 18:03:16 layer Exp $
+;; $Id: ftpd.cl,v 1.23 2002/09/16 20:52:39 layer Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.13")
+(defvar *ftpd-version* "1.0.14")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -1770,6 +1770,7 @@
       (push (concatenate 'string file ".fasl") files))
     (setf files (cons "ftpd.fasl" (reverse files)))
     (setf files (append files '(:srecord :locale))) ;; add modules here
+    (setq files (cons "config.cl" files))
     (compile-file-if-needed "ftpd.cl")
     (generate-executable 
      "aftpd" 
