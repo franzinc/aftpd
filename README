@@ -1,27 +1,58 @@
-$Id: README,v 1.5 2002/01/21 23:18:05 dancy Exp $
+Allegro FTPd documentation
 
----building---
+Table of Contents:
 
-To build:
-Start lisp
-:cl ftpd.cl
-(build)
+1. Installation
+   A. from source code
+   B. using the supplied binaries
+2. Configuration
+   A. anonymous FTP setup
+   B. Firewall considerations
+   C. Restricted users
+3. Security notes
 
-That's it! Run aftpd/aftpd.  
+$Id: README,v 1.6 2002/02/19 23:13:01 layer Exp $
 
---------------
+*******************************************************************************
+1. Installation
 
-Configuration notes:
+Allegro FTPd (aFTPd) runs on Linux and Solaris on Allegro Common
+Lisp.
 
-Allegro FTPd configuration is determined by defparameter forms at the
-beginning of ftpd.cl.  Most of the forms have comments which indicate
-their proper use (the forms and comments are reproduced in the file
-CONFIG for binary distributions).  All of the parameters can be
-overridden at runtime by the /etc/aftpd.cl file (or whichever pathname
-is specified in *configfile* in ftpd.cl).  /etc/aftpd.cl is loaded
-when the FTP server is first started... and every time a new
-connection is made.  Simply supply new defparameter forms in
-/etc/aftpd.cl to override default configuration variables.
+You can either build aFTPd from sources or use the binaries built by
+Franz Inc.  If you want to build your own, then you must have Allegro
+CL Enterprise Edition.
+
+<<<<insert discussion of deployment w/Enterprise here>>>>
+
+*******************************************************************************
+1A. Installation: from source code
+
+Download and unpack the source code.  Then, startup Allegro CL
+Enterprise and type, in the directory containing the source code:
+
+	   :cl ftpd.cl
+	   (build)
+
+This will make an `aftpd' directory with the program `aftpd' and
+supporting files.  These files should be kept together if they are to
+be installed in another directory.
+
+*******************************************************************************
+1B. Installation: using the supplied binaries
+
+<<<<finish me>>>>
+
+*******************************************************************************
+2. Configuration
+
+Allegro FTPd configuration is determined by the defparameter forms in
+config.cl.  Most of the forms have comments which indicate their
+proper use.  All of the parameters can be overridden at runtime by the
+/etc/aftpd.cl file (or whichever pathname is specified in *configfile*
+in ftpd.cl).  /etc/aftpd.cl is loaded when the FTP server is first
+started, and every time a new connection is made.  Simply supply setq
+forms in /etc/aftpd.cl to override default configuration variables.
 
 Command line options:
 
@@ -29,29 +60,56 @@ Command line options:
 -d		Run in debug mode [doesn't fork]
 -p portnum	Use alternate ftp server port
 
-
---------Anonymous ftp setup-------------------
+*******************************************************************************
+2A. Configuration: anonymous FTP setup
 
 *anonymous-ftp-account* must exist in /etc/passwd and it's home
 directory must exist.  The home directory should be set up for a
 chroot environment.  Required files (relative to the chroot'd home
 directory)
 
-/dev/null (Linux: mknod null c 1 3; chmod a+w null)
-/bin/ls Ideally statically linked.  If not, then the necessary shared
-        libraries are necessary in /lib or /usr/lib
+/dev/null
+    On Linux, create with ``mknod null c 1 3; chmod a+w null''.
+
+/bin/ls
+    Ideally (from a security standpoint) it should be statically
+    linked.  If not, then the necessary shared libraries should exist
+    in the anonymous ftp account home directory.
 
 Optional:
-/welcome.msg  Displayed after authentication has been completed
-/etc/passwd and /etc/group if you want 'ls' to display user/group names 
-  instead of id numbers.
-tar, compression programs, etc, and their necessary shared libraries
- if you want conversions.
+
+/welcome.msg
+    Displayed after authentication has been completed.
+
+/etc/passwd
+/etc/group
+    If you want 'ls' to display user/group names instead of id
+    numbers.
+
+/bin/tar
+/bin/zip
+/bin/bzip2
+/bin/gzip
+/bin/compress
+    If you want conversions, and don't forget their shared libraries.
 
 No files/directories should be writeable except for those directories
 in which you want to allow anonymous FTP uploads.
 
-----------------------------------------------
+If the `ls' or `dir' commands from an FTP client show no files, and
+you know there are files to list, check that `ls' runs while
+chroot'd.  It may be that some shared library needed by `ls', if it is
+dynamically linked, is not there.
+
+*******************************************************************************
+2B. Configuration: Firewall considerations
+
+For passive FTP to work, the ports specified by *pasvrange* in
+config.cl must be open on the firewall.  Additionally, ports given by
+*ftpport* and *ftpdataport* should be open.
+
+*******************************************************************************
+2C. Configuration: Restricted users
 
 Restricted users:
 
@@ -106,19 +164,18 @@ cd dirptr:  allowed because absolute pathname is /home/dancy/dirptr
 
 cd ..:  allowed because absolute pathname is /home/dancy again.
 
-----------------------------------------------
+*******************************************************************************
+3. Security notes
 
-Security notes:
-
-Since this FTP server is written in lisp, it should be free of buffer
-overflows.  None of the foreign functions used fill in any
+Since this FTP server is written in Common Lisp, it should be free of
+buffer overflows.  None of the foreign functions used fill in any
 variable-sized buffers so things should be safe on that front as well.
 One target of attack may be the conversions.  Bugs in conversion
 programs could lead to security compromises.  For example, gzip-1.2.4
 may suffer a buffer overflow if its command line is too long (see
 http://www.securityfocus.com/advisories/3801 ).  Make sure all of your
 conversion programs are up-to-date.  If you're really worried, you can
-set *conversions* to 'nil' to disallow all conversions.
-If you want to audit the security of this FTP server, it is
-recommended that you examine the make-full-path and glob functions
-(and their callers and callees).
+set *conversions* to 'nil' to disallow all conversions.  If you want
+to audit the security of this FTP server, it is recommended that you
+examine the make-full-path and glob functions (and their callers and
+callees).

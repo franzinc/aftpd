@@ -1,6 +1,14 @@
 *** Don't forget to increment the version number in ftpd.cl for each commit
 *** [and leave this message at the top of the file]
 
+2002-02-19  D Layer  <layer@relay.known.net>
+1.0.12
+
+	* README: reorganize and add a little more info
+	* CONFIG, config.cl, ftpd.cl:
+	renamed CONFIG to config.cl, and include it during the compilation
+	of ftpd.cl
+
 2002-02-14  Kevin Layer  <layer@crikey>
 1.0.11
 

@@ -1,9 +1,7 @@
-;; $Id: CONFIG,v 1.2 2002/01/21 23:18:05 dancy Exp $
-
-This is a copy of the configuration section of ftpd.cl.  These are 
-the default configuration values.  To override a value, simply supply
-a similiar defparameter form in /etc/aftpd.cl.   
-
+;; $Id: config.cl,v 1.1 2002/02/19 23:13:01 layer Exp $
+;;
+;; To override a default configuration value, simply supply
+;; a setq of the variable with a new value in /etc/aftpd.cl.
 
 (defparameter *logfile* "/var/log/ftp")
 (defparameter *xferlog* "/var/log/xferlog")
