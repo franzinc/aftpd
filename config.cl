@@ -1,4 +1,4 @@
-;; $Id: config.cl,v 1.1 2002/02/19 23:13:01 layer Exp $
+;; $Id: config.cl,v 1.2 2002/08/09 22:44:52 dancy Exp $
 ;;
 ;; To override a default configuration value, simply supply
 ;; a setq of the variable with a new value in /etc/aftpd.cl.
@@ -45,6 +45,21 @@
 ;; to change or override these, or update your firewall settings to
 ;; allow incoming connections to these ports.
 (defparameter *pasvrange* '(35000 . 39999))
+
+;; IP address to return in response to PASV command.  This can be left
+;; 'nil' for most people.  However, if you have special needs due to
+;; network address translation, this can help you.  This parameter
+;; should be a list of conses w/ the following layout: 
+;;   car: string w/ address of network in either a.b.c.d/x.y.z.w
+;;        (address/netmask) format or a.b.c.d/x (CIDR) format.  
+;;   cdr: string w/ PASV IP address to use for clients matching that
+;;        network.  
+;; The IP address reported to the client is chosen from the
+;; best match in this list.  Note that this does not affect the IP
+;; interface to which the passive connection is bound.  It only
+;; controls the address which is reported to the client.  See the
+;; README file for additional information and a contrived example.
+(defparameter *pasvipaddrs* nil)
 
 ;; If you only want to listen on a particular network interface, put
 ;; it's IP address here (e.g. "192.132.95.151").  If 'nil', all 

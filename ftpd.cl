@@ -1,8 +1,8 @@
-;; $Id: ftpd.cl,v 1.20 2002/02/19 23:13:01 layer Exp $
+;; $Id: ftpd.cl,v 1.21 2002/08/09 22:44:52 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.12")
+(defvar *ftpd-version* "1.0.13")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -61,7 +61,7 @@
 
 (eval-when (compile load eval)
   (defparameter *extra-files*
-      '("passwd" "eol" "posix-lock")))
+      '("passwd" "eol" "posix-lock" "ipaddr")))
 
 (eval-when (compile)
   (dolist (source *extra-files*)
@@ -384,8 +384,7 @@
 		    (setf lastchar char))))))))
 
 (defun ftpd-main (sock)
-  (if (probe-file *configfile*)
-      (load *configfile*))
+  (load-config-file)
   (open-logs)
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
@@ -713,7 +712,7 @@
 		   (signal c)
 		 nil))))
     (setf (pasv client) sock)
-    (let ((addr (socket:local-host (client-sock client))))
+    (let ((addr (get-passive-ip-addr client)))
       (outline "227 Entering Passive Mode (~D,~D,~D,~D,~D,~D)"
 	       (logand (ash addr -24) #xff)
 	       (logand (ash addr -16) #xff)
@@ -721,7 +720,14 @@
 	       (logand addr #xff)
 	       (logand (ash port -8) #xff)
 	       (logand port #xff)))))
-
+  
+(defun get-passive-ip-addr (client)
+  (let ((net (best-network-match (socket:remote-host (client-sock client))
+				 (mapcar #'car *pasvipaddrs*))))
+    (if (null net)
+	(socket:local-host (client-sock client))
+      (cdr (assoc net *pasvipaddrs* :test #'eq)))))
+  
 (defun cmd-type (client cmdtail)
   (block nil
     (let ((params (delimited-string-to-list cmdtail " ")))
@@ -1658,10 +1664,9 @@
 	    (setf *configfile* configfile)
 	    (if (not (probe-file *configfile*))
 		(error "Config file ~A does not exist." *configfile*)))))
-    
-    (if (probe-file *configfile*)
-	(load *configfile*))
-    
+
+    (load-config-file)
+
     (if (get-opt "-d" args)
 	(setf *debug* t))
     
@@ -1749,7 +1754,16 @@
       (error "Failed to setpgrp"))
   )
   
-  
+(defun load-config-file ()
+  (if (probe-file *configfile*)
+      (load *configfile*))
+  (dolist (addr *pasvipaddrs*)
+    (if* (not (network-address-p (car addr)))
+       then
+	    (setf (car addr) (parse-addr (car addr)))
+	    (setf (cdr addr) (socket:dotted-to-ipaddr (cdr addr))))))
+
+
 ;;;;;;;;;
 
 (defun build ()
