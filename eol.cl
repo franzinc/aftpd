@@ -5,17 +5,20 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: eol.cl,v 1.4 2002/09/16 21:31:24 layer Exp $
+;; $Id: eol.cl,v 1.5 2002/09/23 22:58:56 layer Exp $
 ;;
-;; Code stolen from Charley Cox.
+;; This code is part of ACL 6.2.
 
+#-(version>= 6 2)
 (defpackage :excl (:export #:find-composed-external-format))
+
 (in-package :excl)
 
 (eval-when (compile load eval)
   (require :efmacs)
   (require :iodefs))
 
+#-(version>= 6 2)
 (defun find-composed-external-format (composer composee
 				      &aux (composer (find-external-format
 						      composer))
@@ -65,6 +68,7 @@
 	(switch-ef-to-runtime composee))
       nef)))
 
+#-(version>= 6 2)
 (defun fill-ef-templates (ef)
   (let ((file (generate-filled-ef-templates
 	       :external-formats ef
@@ -72,12 +76,14 @@
     (load file)
     (delete-file file)))
 
+#-(version>= 6 2)
 (defun encapsulating-composer-p (ef)
   (declare (ignorable ef))
   #+(version>= 6 1) (ef-composing-functions (find-external-format ef))
   #-(version>= 6 1) nil)
 
 
+#-(version>= 6 2)
 (defun reload-ef (ef)
   ;; This is a hack.
   (let ((*modules*
@@ -97,74 +103,7 @@
        (require (concatenate 'string "ef-" (string-downcase
 					    (subseq name 0 end))))))))
 
+#-(version>= 6 2)
 (defun runtime-ef-p (ef)
   (or (not (ef-char-to-octets-macro ef))
       (not (ef-octets-to-char-macro ef))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(def-external-format :cr)
-
-(def-char-to-octets-macro :cr (char
-			       state
-			       &key put-next-octet external-format)
-  (declare (ignorable state))
-  (let ((char-var (gensym)))
-    `(let ((,char-var ,char))
-       (char-to-octets ,external-format
-		       (if* (eq #\newline ,char-var)
-			  then #\return
-			  else ,char-var)
-		       ,state
-		       :put-next-octet ,put-next-octet))))
-
-(def-octets-to-char-macro :cr (state
-			       &key get-next-octet external-format
-			       octets-count-loc unget-octets)
-  (let ((char-var (gensym)))
-    `(let ((,char-var (octets-to-char ,external-format ,state
-				      :octets-count-loc ,octets-count-loc
-				      :unget-octets ,unget-octets
-				      :get-next-octet ,get-next-octet
-				      :oc-eof-macro nil)))
-       (if* (eq #\return ,char-var)
-	  then #\newline
-	  else ,char-var))))
-
-(defpackage :eol
-  (:use :common-lisp :excl)
-  (:export :eol-convention)
-  (:shadow :eol-convention))
-
-(in-package :eol)
-
-;; This function assumes the eol composer is the outer-most composer.
-(defun eol-convention (stream &aux (ef (find-external-format
-					(stream-external-format stream))))
-  (if* (composed-external-format-p ef)
-     then (let ((composer (ef-composer-ef ef)))
-	    (if* (or #+(version>= 6 1) (eq composer
-					   (find-external-format :e-crlf))
-		     (eq composer (find-external-format :crlf))
-		     (eq composer (find-external-format :crcrlf))
-		     #+(version>= 6 1) (eq composer
-					   (find-external-format :e-crcrlf)))
-	       then (values :dos (ef-composee-ef ef))
-	     elseif (eq composer (find-external-format :cr))
-	       then (values :mac (ef-composee-ef ef))
-	       else (values :unix ef)))
-     else (values :unix ef)))
-
-(defun (setf eol-convention) (convention stream)
-  (multiple-value-bind (cur base-ef) (eol-convention stream)
-    (declare (ignore cur))
-    (setf (stream-external-format stream)
-      (ecase convention
-	(:unix base-ef)
-	(:dos (find-composed-external-format
-	       #+(version>= 6 1) ':e-crlf
-	       #-(version>= 6 1) ':crlf
-	       base-ef))
-	(:mac (find-composed-external-format :cr base-ef)))))
-  ;; return value
-  (eol-convention stream))

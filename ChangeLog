@@ -1,6 +1,12 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-09-23  Kevin Layer  <layer@crikey>
+1.0.15
+
+	* eol.cl: remove :cr external format (it's unused); the rest is
+	already part of 6.2, so ignore it there
+
 *******************************************************************************
 1.0.14 release
 *******************************************************************************

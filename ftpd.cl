@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.25 2002/09/18 20:45:50 dancy Exp $
+;; $Id: ftpd.cl,v 1.26 2002/09/23 22:58:56 layer Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.14")
+(defvar *ftpd-version* "1.0.15")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
