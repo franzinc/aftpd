@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.11 2002/09/17 22:03:01 layer Exp $
+# $Id: makefile,v 1.12 2002/09/17 22:14:17 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -20,6 +20,7 @@ default: FORCE
 	cp -p makefile aftpd
 	cp -p S99aftpd aftpd
 	cp -p aftpd.init aftpd
+	cp -p config.cl aftpd
 	cp -p readme.txt aftpd
 	cp -p binary-license.txt aftpd
 

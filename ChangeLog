@@ -4,6 +4,8 @@
 2002-09-17  Kevin Layer  <layer@crikey>
 
 	* makefile: put files in src arching in aftpd-<version> directory
+	* config.cl: add comments to make clear that changing this file in
+	the binary distribution will do no good.
 
 2002-09-16  Kevin Layer  <layer@crikey>
 
