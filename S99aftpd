@@ -1,0 +1,23 @@
+#!/sbin/sh
+#
+# $Id: S99aftpd,v 1.1 2002/09/16 21:40:30 dancy Exp $
+
+installdir=/usr/local/sbin/aftpd
+
+case "$1" in
+'start')
+	if [ -x ${installdir}/aftpd ]; then
+		${installdir}/aftpd
+	fi
+	;;
+
+'stop')
+	/usr/bin/pkill aftpd
+	;;
+
+*)
+	echo "Usage: $0 { start | stop }"
+	exit 1
+	;;
+esac
+exit 0

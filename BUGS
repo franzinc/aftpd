@@ -1,4 +1,4 @@
-$Id: BUGS,v 1.7 2001/12/19 19:36:15 dancy Exp $
+$Id: BUGS,v 1.8 2002/09/16 21:40:30 dancy Exp $
 
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
 
@@ -9,3 +9,7 @@ Need errno information to improve error responses.
 May want to support a list of users to not allow ftp logins from.
 
 Doesn't support SITE UTIME t3 20011207021328 20010314175752 20010719170637 UTC
+
+There remains some situation where an aftpd process will hang around
+forever.  This happens very rarely so it has been difficult to track
+down.

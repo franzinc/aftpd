@@ -5,7 +5,9 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.4 2002/09/16 21:31:24 layer Exp $
+# $Id: makefile,v 1.5 2002/09/16 21:40:30 dancy Exp $
+
+INSTALLDIR=/usr/local/sbin
 
 default: FORCE
 	rm -f build.tmp
@@ -30,5 +32,17 @@ src: FORCE
 
 clean: FORCE
 	rm -fr aftpd *.fasl autoloads.out
+
+install-common: FORCE
+	rm -fr $(INSTALLDIR)/aftpd
+	mkdir -p $(INSTALLDIR)
+	cp -pr aftpd $(INSTALLDIR)
+	
+install-linux: install-common
+	cp -p aftpd.init /etc/init.d/aftpd
+	/sbin/chkconfig aftpd reset
+
+install-solaris: install-common
+	cp -p S99aftpd /etc/rc2.d
 
 FORCE:
