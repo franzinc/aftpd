@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.35 2004/01/14 20:04:13 dancy Exp $
+;; $Id: ftpd.cl,v 1.36 2004/07/13 16:20:51 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.23")
+(defvar *ftpd-version* "1.0.24")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -1539,7 +1539,7 @@
 	  (return (outline "553 Rename permission denied.")))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." fullpath)))
       
       (handler-case
 	  (when (rename (rename-from client) to)
