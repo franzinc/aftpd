@@ -1,5 +1,8 @@
 2001-12-06  Ahmon Dancy  <dancy@dancy>
 
+	* Updated the way the config file is loaded.  Add process id to
+	ftp-log output.  If *debug* is :verbose, log (outline) data. 
+
 	* eol.cl:  Added some 'require's.
 
 	* ftpd.cl:  Changed the default PASV port range.  Changed *debug*

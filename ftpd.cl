@@ -1,4 +1,4 @@
-;; $Id: ftpd.cl,v 1.3 2001/12/06 23:32:03 dancy Exp $
+;; $Id: ftpd.cl,v 1.4 2001/12/07 00:04:25 dancy Exp $
 
 (in-package :user)
 
@@ -43,11 +43,6 @@
 
 (defparameter *configfile* "/etc/aftpd.cl")
 
-(eval-when (load eval)
-  (if (probe-file *configfile*)
-      (load *configfile*)))
-
-
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
 (ff:def-foreign-call wait () :strings-convert nil :returning :int)
 (ff:def-foreign-call waitpid () :strings-convert nil :returning :int)
@@ -60,6 +55,7 @@
 (ff:def-foreign-call geteuid () :strings-convert nil :returning :int)
 (ff:def-foreign-call getegid () :strings-convert nil :returning :int)
 (ff:def-foreign-call initgroups () :strings-convert t :returning :int)
+(ff:def-foreign-call getpid () :strings-convert nil :returning :unsigned-int)
 (ff:def-foreign-call umask () :strings-convert nil :returning :unsigned-int)
 (ff:def-foreign-call (unix-chdir "chdir") () :strings-convert t
 		     :returning :int)
@@ -254,11 +250,14 @@
 ;; never call outline w/ a first argument that is anything
 ;; but a format string.
 (defmacro outline (&rest args)
-  `(progn 
-     (funcall #'format *outlinestream* ,@args)
-     (write-char #\return *outlinestream*)
-     (write-char #\newline *outlinestream*)
-     (force-output *outlinestream*)))
+  (let ((ressym (gensym)))
+    `(let ((,ressym (funcall #'format nil ,@args)))
+       (if (eq *debug* :verbose)
+	   (ftp-log "~A~%" ,ressym))
+       (write-string ,ressym *outlinestream*)
+       (write-char #\return *outlinestream*)
+       (write-char #\newline *outlinestream*)
+       (force-output *outlinestream*))))
 
 (defmacro with-output-to-client ((client) &body body)
   `(let ((*outlinestream* (client-sock ,client)))
@@ -1353,8 +1352,9 @@
 	res))))
 
 (defun ftp-log (&rest args)
-  (format t "~A: ~?"
+  (format t "~A [~D]: ~?"
 	  (ctime (unix-time 0) :strip-newline t)
+	  (getpid)
 	  (first args)
 	  (rest args)))
 
@@ -1364,4 +1364,6 @@
   (generate-executable "aftpd" '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl")))
 
 (defun main (&rest args)
+  (if (probe-file *configfile*)
+      (load *configfile*))
   (standalone-main))
