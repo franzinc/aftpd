@@ -1,10 +1,14 @@
-;; $Id: ftpd.cl,v 1.6 2001/12/07 23:13:28 dancy Exp $
+;; $Id: ftpd.cl,v 1.7 2001/12/08 17:28:52 dancy Exp $
 
 (in-package :user)
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
-  
+
+(defparameter *configfile* "/etc/aftpd.cl")
+
+(defparameter *logfile* "/var/log/ftp")
+
 (defparameter *ftpport* 21)
 ;; Control channel timeout
 (defparameter *idletimeout* 120)
@@ -44,7 +48,6 @@
       (".gz" . #.(vector "/bin/gzip" "-9" "-c"))
       (".Z" . #.(vector "/bin/compress" "-c"))))
 
-(defparameter *configfile* "/etc/aftpd.cl")
 
 
 (ff:def-foreign-call fork () :strings-convert nil :returning :int)
@@ -81,6 +84,13 @@
 		     :returning :int)
 (ff:def-foreign-call chmod () :strings-convert t 
 		     :returning :int)
+(ff:def-foreign-call setpgrp () :strings-convert nil 
+		     :returning :int)
+(ff:def-foreign-call (unix-open "open") () :strings-convert t
+		     :returning :int)
+(ff:def-foreign-call (unix-close "close") () :strings-convert nil
+		     :returning :int)
+(ff:def-foreign-call ioctl () :strings-convert t :returning :int)
 
 
 (eval-when (compile)
@@ -201,6 +211,8 @@
     '(("chmod" . site-chmod)
       ("umask" . site-umask)))
 
+(defparameter *logstream* nil)
+
 (defun standalone-main ()
   (let ((serv (socket:make-socket :connect :passive 
 				  :local-host *interface*
@@ -211,13 +223,8 @@
 	(loop
 	  (let ((client (ignore-errors (socket:accept-connection serv))))
 	    (if client
-		(progn
-		  (ftp-log "Connection made from ~A.~%"
-			   (socket:ipaddr-to-dotted 
-			    (socket:remote-host client)))
-		  (spawn-client client serv)))))
+		(spawn-client client serv))))
       ;; cleanup forms
-      (ftp-log "Cleanup: Closing server socket.~%")
       (close serv))))
 
 ;; Orphans the child so that 'init' will pick it up.
@@ -228,11 +235,7 @@
 	  (if (= pid 0)
 	      (progn
 		(close serv) ;; don't need it
-		(if *debug*
-		    (ftpd-main sock)
-		  (handler-case (ftpd-main sock)
-		    (t (c)
-		      (ftp-log "Error ~S~%" c))))
+		(ftpd-main sock)
 		(exit t :no-unwind t :quiet t)) ;; make sure this lisp exits.
 	    (exit t :no-unwind t :quiet t))) ;; orphan the child
       (progn
@@ -347,25 +350,33 @@
 		    (setf lastchar char))))))))
 
 (defun ftpd-main (sock)
-  (unwind-protect
-      (let ((client (make-instance 'client :sock sock))
-	    (*locale* (find-locale :c))) 
-	(umask (client-umask client))
-	(with-output-to-client (client)
-	  (outline "220 Welcome to Allegro FTPd")
-	  (loop
-	    (let ((req (get-request client)))
-	      (if (eq req :eof)
-		  (return (cleanup client)))
-	      (if (eq req :timeout)
-		  (progn
-		    (outline
-		     "421 Timeout: closing control connection.")
-		    (return (cleanup client))))
-	      (if (eq (dispatch-cmd client req) :quit)
-		  (return (cleanup client)))))))
-    (ignore-errors (close sock))))
-
+  (open-log)
+  (ftp-log "Connection made from ~A.~%"
+	   (socket:ipaddr-to-dotted 
+	    (socket:remote-host sock)))
+  (handler-case
+      (unwind-protect
+	  (let ((client (make-instance 'client :sock sock))
+		(*locale* (find-locale :c))) 
+	    (umask (client-umask client))
+	    (with-output-to-client (client)
+	      (outline "220 Welcome to Allegro FTPd")
+	      (loop
+		(let ((req (get-request client)))
+		  (if (eq req :eof)
+		      (return (cleanup client)))
+		  (if (eq req :timeout)
+		      (progn
+			(outline
+			 "421 Timeout: closing control connection.")
+			(return (cleanup client))))
+		  (if (eq (dispatch-cmd client req) :quit)
+		      (return (cleanup client)))))))
+	(ignore-errors (close sock)))
+    (t (c)
+      (ftp-log "Error: ~A~%" c)))
+  (close-log))
+  
 (defun dispatch-cmd (client cmdstring)
   (block nil
     (let ((spacepos (position #\space cmdstring))
@@ -820,7 +831,6 @@
 		    conversionvec
 		    (vector file))))
       (with-external-command (stream cmdvec)
-	;;(format t "cmdvec is ~S~%" cmdvec)
 	(transmit-stream client stream (aref cmdvec 0))))))
 
 (defun transmit-stream (client stream name) 
@@ -1517,13 +1527,68 @@
 	res))))
 
 (defun ftp-log (&rest args)
-  (format t "~A [~D]: ~?"
+  (format *logstream* "~A [~D]: ~?"
 	  (ctime (unix-time 0) :strip-newline t)
 	  (getpid)
 	  (first args)
-	  (rest args)))
+	  (rest args))
+  (force-output *logstream*))
+
+(defun open-log ()
+  (setf *logstream*
+    (if *debug*
+	*standard-output*
+      (open *logfile*
+	    :direction :output
+	    :if-does-not-exist :create
+	    :if-exists :append))))
+
+(defun close-log ()
+  (if (not *debug*)
+      (close *logstream*)))
 
 ;;;;;;;;;
+(defun main (&rest args)
+  (block nil
+    (if (probe-file *configfile*)
+	(load *configfile*))
+    (if (not *debug*)
+	(let ((pid (fork)))
+	  (cond
+	   ((< pid 0)
+	    (error "Ack!! fork failed!"))
+	   (( = pid 0)
+	    ;; child
+	    (ftp-chdir "/")
+	    (disassociate))
+	    (t
+	     ;; parent
+	     (return 0)))))
+      (standalone-main)))
+
+;; Linux
+(defconstant TIOCNOTTY #x00005422)
+(defconstant O_RDWR #x00000002)
+
+(defmacro with-unix-open ((fd path flags) &body body)
+  `(let ((,fd (unix-open ,path ,flags 0)))
+     (unwind-protect (progn ,@body)
+       (if (>= ,fd 0)
+	   (unix-close ,fd)))))
+	      
+(defun disassociate ()
+  (if (not (= 0 (setpgrp)))
+      (error "Failed to setpgrp"))
+  (with-unix-open (fd "/dev/tty" O_RDWR)
+   (if (>= fd 0)
+       (ioctl fd TIOCNOTTY 0)))
+  (dotimes (i 3)
+    (unix-close i)
+    (if (not (= i (unix-open "/dev/null" O_RDWR 0)))
+	(error "Got unexpected fd"))))
+
+;;;;;;;;;
+
 (defun build ()
   (compile-file-if-needed "ftpd.cl")
   (generate-executable 
@@ -1531,7 +1596,3 @@
    '("ftpd.fasl" "getpwnam.fasl" "stat.fasl" "eol.fasl"
      :srecord)))
 
-(defun main (&rest args)
-  (if (probe-file *configfile*)
-      (load *configfile*))
-  (standalone-main))

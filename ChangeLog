@@ -1,3 +1,10 @@
+2001-12-08  Ahmon Dancy  <dancy@dancy>
+
+	* Added *logfile* and it's workings.  
+
+	* Process forks and disassociates from the controlling terminal
+	now.  More like a typical daemon.
+
 2001-12-07  Ahmon Dancy  <dancy@dancy>
 
 	* README: added build instructions and fixed a typo.
