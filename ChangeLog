@@ -1,6 +1,12 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2002-10-22  Ahmon Dancy  <dancy@dancy>
+
+	* inc'd version number.
+
+	* Changed the code for NLST to make it behave more like wu-ftpd.
+	
 2002-09-30  Ahmon Dancy  <dancy@dancy>
 
 	* inc'd version number.

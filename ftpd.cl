@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.27 2002/09/30 19:57:24 dancy Exp $
+;; $Id: ftpd.cl,v 1.28 2002/10/22 17:45:31 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.16")
+(defvar *ftpd-version* "1.0.17")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -1280,9 +1280,56 @@
 (defun cmd-list (client path)
   (list-common client path #("-la")))
 
+(defun ftp-enough-namestring (path cwd)
+  (when (string/= cwd "/")
+    (setf cwd (concatenate 'string cwd "/")))
+  (enough-namestring path cwd))
+  
+  
+(defun directory-contents-without-subdirs (dir cwd)
+  (let (res)
+    (dolist (p (directory (concatenate 'string dir "/")))
+      (if (not (file-directory-p p))
+	  (push (ftp-enough-namestring p cwd) res)))
+    (reverse res)))
+
 (defun cmd-nlst (client path)
-  (list-common client path #()))
+  (block nil
+    (let ((fullpath (make-full-path (pwd client) path))
+	  listing)
+      (if (and (restricted client) (out-of-bounds-p client fullpath))
+	  (return (outline "550 ~A: Permission denied.")))
+      (cond 
+       ((file-directory-p fullpath)
+	(setf listing (directory-contents-without-subdirs 
+		       fullpath (pwd client))))
+       ((probe-file fullpath)
+	(setf listing (list (ftp-enough-namestring fullpath (pwd client)))))
+       (t
+	(setf listing 
+	  (mapcar #'(lambda (path) (ftp-enough-namestring path (pwd client)))
+		  (remove-if #'file-directory-p 
+			     (glob-single fullpath (pwd client)))))))
+      (if (null listing)
+	  (return (outline "550 No files found.")))
+      
+      (if (null (data-connection-prepared-p client))
+	  (return (outline "452 No data connection has been prepared.")))
+
+      (if (null (establish-data-connection client))
+	  (return))
+      
+      (outline "150 Opening ASCII mode data connection for /bin/ls.")
+	
+      (let ((*outlinestream* (dataport-sock client)))
+	(dolist (path listing)
+	  (outline "~A" path)))
     
+      (cleanup-data-connection client)
+      (outline "226 Transfer complete."))))
+
+
+
 ;; XXX -- according to the spec, this is supposed to work asynchronously.
 ;; XXX -- I'll probably never work on that.
 (defun cmd-stat (client cmdtail)
