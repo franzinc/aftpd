@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.7 2002/09/17 17:06:21 layer Exp $
+# $Id: makefile,v 1.8 2002/09/17 17:11:11 layer Exp $
 
 INSTALLDIR=/usr/local/sbin
 
@@ -17,6 +17,7 @@ default: FORCE
 	echo '(load "ftpd.fasl")' >> build.tmp
 	echo '(build)' >> build.tmp
 	mlisp-6.2 -batch -q -L build.tmp -kill
+	cp -p binary-license.txt aftpd
 
 version = $(shell grep ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 
@@ -31,6 +32,7 @@ src: FORCE
 	mkdir aftpd-$(version)
 	cp -p $(SOURCE_FILES) aftpd-$(version)
 	gtar zcf aftpd-$(version)-src.tgz aftpd-$(version)
+	rm -fr aftpd-$(version)
 
 clean: FORCE
 	rm -fr aftpd *.fasl autoloads.out
