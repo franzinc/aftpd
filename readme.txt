@@ -11,17 +11,18 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: readme.txt,v 1.4 2002/12/18 17:47:38 layer Exp $
+$Id: readme.txt,v 1.5 2005/05/25 20:01:41 dancy Exp $
 
 *******************************************************************************
 1. Installation
 
-Allegro FTPd (aFTPd) runs on Linux and Solaris on Allegro Common
-Lisp.
+Allegro FTPd (aFTPd) has been tested on Linux, Solaris, and FreeBSD on
+Allegro Common Lisp.  Other platforms supported by Allegro Common Lisp
+may work as well but Allegro FTPd has not be tested on them.
 
 You can either build aFTPd from sources or use the binaries built by
 Franz Inc.  If you want to build your own, then you must have Allegro
-Common Lisp Enterprise Edition.
+Common Lisp Enterprise Edition, version 7.0 or better.
 
 *******************************************************************************
 1A. Installation: from source code
@@ -39,7 +40,8 @@ Enterprise and type, in the directory containing the source code:
 	   :cl ftpd.cl
 	   (build)
 
-or type "make".
+or just type "make" (requires GNU make, which is typically installed
+as /usr/local/bin/gmake on FreeBSD).
 
 This will make an `aftpd' directory with the program `aftpd' and
 supporting files.  Use this directory in step (1C).
@@ -49,8 +51,9 @@ supporting files.  Use this directory in step (1C).
 
 You may use the supplied binaries if you do not have a copy of Allegro
 Common Lisp Enterprise Edition. The Linux binaries will work on x86
-Red Hat 6.0 or later, or any glibc 2.1 capable system.  The Solaris
-binaries will work on 5.7 or later See the file binary-license.txt for
+Red Hat 7.3 or later, or any glibc 2.2 capable system.  The Solaris
+binaries will work on Solaris 5.8 or later.  The FreeBSD binaries will
+work on FreeBSD 4.10 or later.  See the file binary-license.txt for
 the license terms for use of these binaries.
 
 When extracted the .tgz files will create the `aftpd' from step (1A).
@@ -61,19 +64,31 @@ Use this directory in step (1C).
 
 Now that you have an aftpd/ directory (either by building or
 extracting a pre-built binary) you can complete the installation
-process.  The default installation process installs the program in the
+process.  
+
+First, make sure that you have disabled any existing ftp server you
+might have configured on your system.  Verify by attempting to make an
+ftp connection to localhost.  If you get a connection refused
+response, then there is no FTP server running.
+
+The default installation process installs the program in the
 /usr/local/sbin/aftpd directory.  If this is not what you want, you
-can edit 'makefile' and 'aftpd.init' [linux] or 'S99aftpd' [Solaris].  
+can edit 'makefile' and the appropriate startup script for the
+platform:
+  Linux:  aftpd.init
+  Solaris: S99aftpd
+  FreeBSD: rc.aftpd.sh
 
 To finish the installation, do:
 
    # make install
 
-on both Linux and Solaris.  NOTE: you must have GNU make install to
-use the supplied makefile.  This will copy the aftpd directory into
-/usr/local/sbin and install the appropriate scripts to make the FTP
-server start up at boot time.  For Linux, the installation is assumed
-to be Redhat-like.
+NOTE: you must have GNU make to use the supplied makefile.  On
+FreeBSD, GNU make is typically installed as /usr/local/bin/gmake.
+
+This will copy the aftpd directory into /usr/local/sbin and install
+the appropriate scripts to make the FTP server start up at boot time.
+For Linux, the installation is assumed to be Redhat-like.
 
 To execute the server by hand, run /usr/local/sbin/aftpd/aftpd.
 Information on optional command line switches follows.
@@ -122,6 +137,8 @@ home directory)
       mknod null c 1 3; chmod a+w null
     Solaris:
       mknod null c 13 2; chmod a+w null
+    FreeBSD:
+      mknod null c 2 2; chmod a+w null
 
 /bin/ls
     Ideally (from a security standpoint) it should be statically
@@ -143,7 +160,7 @@ Optional:
 /bin/bzip2
 /bin/gzip
 /bin/compress
-    If you want conversions, and don't forget their shared libraries.
+    If you want conversions. Don't forget their shared libraries.
 
 No files/directories should be writeable except for those directories
 in which you want to allow anonymous FTP uploads.
@@ -157,8 +174,8 @@ dynamically linked, is not there.
 2B. Configuration: Firewall considerations
 
 For passive FTP to work, the ports specified by *pasvrange* in
-config.cl must be open on the firewall.  Additionally, ports given by
-*ftpport* and *ftpdataport* should be open.
+config.cl must be open on the firewall.  Additionally, *ftpport*
+should be open.
 
 *******************************************************************************
 2C. Configuration: Restricted users

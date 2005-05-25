@@ -5,21 +5,19 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.21 2004/01/14 20:41:48 dancy Exp $
+# $Id: makefile,v 1.22 2005/05/25 20:01:41 dancy Exp $
 #
 # This makefile requires GNU make.
 
 platform = $(shell uname -s)
 
-ifeq ($(platform),Linux)
-mlisp = $(shell if test -x /storage1/acl/mlisp; then \
-	           echo /storage1/acl/mlisp; \
+mlisp = $(shell if test -x /storage1/acl70/mlisp; then \
+		   echo /storage1/acl70/mlisp; \
+		elif test -x /usr/fi/mlisp-7.0; then \
+		   echo /usr/fi/mlisp-7.0; \
                 else \
-                   echo /fi/cl/6.2/bin/redhat6/mlisp; \
-                fi)
-else
-mlisp = /fi/cl/6.2/bin/solaris/mlisp
-endif
+	           echo NO-LISP; \
+	        fi)
 
 INSTALLDIR=/usr/local/sbin
 
@@ -28,7 +26,7 @@ platform = $(shell uname -s)
 
 SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \
 	config.cl ftpd.cl ipaddr.cl makefile \
-	rfc0959.txt S99aftpd aftpd.init
+	rfc0959.txt S99aftpd aftpd.init rc.aftpd.sh
 
 default: FORCE
 	rm -f build.tmp
@@ -43,15 +41,17 @@ default: FORCE
 pre-dist: FORCE
 	rm -fr aftpd-$(version)
 	mkdir aftpd-$(version)
-	cp -p makefile aftpd-$(version)
-	cp -p S99aftpd aftpd-$(version)
-	cp -p aftpd.init aftpd-$(version)
-	cp -p config.cl aftpd-$(version)
-	cp -p readme.txt aftpd-$(version)
-	cp -p binary-license.txt aftpd-$(version)
-	cp -rp aftpd aftpd-$(version)
+	cp -pr aftpd \
+		makefile \
+		S99aftpd \
+		aftpd.init \
+		rc.aftpd.sh \
+		config.cl \
+		readme.txt \
+	        binary-license.txt \
+	        aftpd-$(version)
 
-linux solaris: clean default pre-dist
+linux solaris freebsd: clean default pre-dist
 	gtar zcf aftpd-$@-$(version).tgz aftpd-$(version)
 
 src: FORCE
@@ -80,6 +80,11 @@ endif
 ifeq ($(platform),SunOS)
 install: install-common
 	cp -p S99aftpd /etc/rc2.d
+endif
+
+ifeq ($(platform),FreeBSD)
+install: install-common
+	cp -p rc.aftpd.sh /usr/local/etc/rc.d/rc.aftpd.sh
 endif
 
 FORCE:

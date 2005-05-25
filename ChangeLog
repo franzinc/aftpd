@@ -1,6 +1,21 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2005-05-25  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl: Bumped version number for new binary builds on ACL 7.0
+
+	* ftpd.cl: Tweaked the error handling on a few filesystem calls.
+	Now uses *strict-probe-file*.  
+
+	* ftpd.cl: Fixed for building on FreeBSD 4.10.
+
+	* makefile.cl: Use 7.0 lisp for building.  Added FreeBSD support.
+
+	* rc.aftpd.sh: new for FreeBSD 4.
+
+	* readme.txt: Updated to reflect FreeBSD support.
+	
 2004-07-13  root  <root@gills.dancysoft.com>
 1.0.24
 	* ftpd.cl: cmd-rnto: Added missing 'fullpath' to format string

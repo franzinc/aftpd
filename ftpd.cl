@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.36 2004/07/13 16:20:51 dancy Exp $
+;; $Id: ftpd.cl,v 1.37 2005/05/25 20:01:41 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.24")
+(defvar *ftpd-version* "1.0.25")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -17,7 +17,14 @@
 (eval-when (compile eval load)
   (require :efmacs)
   (require :osi)
-  (use-package :excl.osi))
+  (use-package :excl.osi)
+  ;; Needed for proper error reporting.
+  (setf excl::*strict-probe-file* t))
+
+(eval-when (compile)
+  (if (shadow-passwd-supported-p)
+      (push :shadow-passwd-supported-p *features*)))
+
 
 ;; Location of the configuration files (which one can use to 
 ;; override the rest of these parameters).
@@ -330,6 +337,9 @@
   (ftp-log "Connection made from ~A.~%"
 	   (socket:ipaddr-to-dotted 
 	    (socket:remote-host sock)))
+  ;; Each connection should have its own random state (used by
+  ;; the PASV command to generate port numbers.  
+  (make-random-state t)
   (let ((client (make-instance 'client :sock sock))
 	(*outlinestream* sock)
 	(*locale* (find-locale :c))
@@ -435,14 +445,13 @@
 	 "331 Guest login ok, send your complete e-mail address as password.")
       (outline "331 Password required for ~A." user))))
 
-;; XXX -- could use PAM
 (defun lookup-account (user)
   (block nil
     (let ((pwent (getpwnam user)))
       (if (null pwent)
 	  (return nil))
-      (if (and (shadow-passwd-supported-p)
-	       (string= (pwent-passwd pwent) "x"))
+      #+shadow-passwd-supported-p
+      (if (string= (pwent-passwd pwent) "x")
 	  (let ((spent (getspnam user)))
 	    (if spent
 		(setf (pwent-passwd pwent) (spwd-passwd spent)))))
@@ -633,8 +642,6 @@
       ;; XXX -- this could theoretically loop forever.  Need a loop limiter
       (setf port
 	(+ (car *pasvrange*)
-	   ;;  XXX -- (random) always returns the same sequence of numbers.
-	   ;; XXX -- need to seed it w/ some random data (/dev/urandom)
 	   (random (1+ (- (cdr *pasvrange*) (car *pasvrange*))))))
       (handler-case (setf sock (socket:make-socket
 				:type :hiper
@@ -1341,26 +1348,23 @@
     (outline "213 End of Status")))
   
 
-;; XXX -- need errno for good error message
 (defun cmd-dele (client file)
   (block nil
     (let ((fullpath (make-full-path (pwd client) file)))
 
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
-      
-      (if (not (probe-file fullpath))
-	  (return (outline "550 ~A: No such file or directory." file)))
-      
+
       (if (and (anonymous client) *anonymous-delete-disabled*)
 	  (return (outline "553 Delete permission denied.")))
       
-      (if (not (ignore-errors (delete-file fullpath)))
-	  (return (outline "550 ~A: Operation failed." file)))
+      (handler-case (delete-file fullpath)
+	(file-error (c)
+	  (return (outline "550 ~A: ~A." 
+			   file (strerror (excl::syscall-error-errno c))))))
       
       (outline "250 DELE command successful."))))
 
-;; XXX -- need errno for good error message
 (defun cmd-rmd (client file)
   (block nil
     (let ((fullpath (make-full-path (pwd client) file)))
@@ -1368,14 +1372,13 @@
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
       
-      (if (not (probe-file fullpath))
-	  (return (outline "550 ~A: No such file or directory." file)))
-      
       (if (and (anonymous client) *anonymous-rmdir-disabled*)
 	  (return (outline "553 RMD Permission denied.")))
       
-      (if (not (ignore-errors (delete-directory fullpath)))
-	  (return (outline "550 ~A: Operation failed." file)))
+      (handler-case (delete-directory fullpath)
+	(file-error (c)
+	  (return (outline "550 ~A: ~A."
+			   file (strerror (excl::syscall-error-errno c))))))
       
       (outline "250 RMD command successful."))))
   
@@ -1439,14 +1442,20 @@
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
       
-      (if (not (probe-file fullpath))
-	  (return (outline "550 ~A: No such file or directory." file)))
-      
-      (if (not (eq :file (excl::filesys-type file)))
-	  (return (outline "550 ~A: not a plain file." file)))
-      
-      (outline "213 ~A" 
-	       (make-mdtm-string (file-write-date fullpath))))))
+      (let ((mtime 
+	     (handler-case (file-write-date fullpath)
+	       (file-error (c)
+		 (return
+		   (outline "550 ~A: ~A."
+			    file
+			    (strerror (excl::syscall-error-errno c))))))))
+	
+	;; XXX -- Should be able to remove this soon
+	(if (null mtime)
+	    (return (outline "500 ~A: Operation failed" file)))
+	
+	(outline "213 ~A" (make-mdtm-string mtime))))))
+	       
 
 ;; YYYYMMDDhhmmss   (in GMT)
 (defun make-mdtm-string (utime)
@@ -1505,13 +1514,14 @@
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied." file)))
       
-      (if (not (probe-file fullpath))
-	  (return (outline "550 ~A: No such file or directory." file)))
+      (let ((size (handler-case (file-length fullpath)
+		    (file-error (c)
+		      (return
+			(outline "550 ~A: ~A."
+				 file 
+				 (strerror (excl::syscall-error-errno c))))))))
 
-      (if (not (eq :file (excl::filesys-type fullpath)))
-	  (return (outline "550 ~A: not a plain file." file)))
-      
-      (outline "213 ~D" (file-length fullpath)))))
+	(outline "213 ~D" size)))))
 
 (defun cmd-rnfr (client from)
   (block nil
@@ -1527,7 +1537,6 @@
       (outline "350 File exists, ready for destination name"))))
 
 ;; Does the actual work.
-;; XXX -- need errno info for proper error message.
 (defun cmd-rnto (client to)
   (block nil
     (let ((fullpath (make-full-path (pwd client) to)))
@@ -1544,8 +1553,10 @@
       (handler-case
 	  (when (rename (rename-from client) to)
 	    (outline "250 RNTO command successful."))
-	(error ()
-	  (outline "550 rename: Operation failed.")))
+	;; XXX -- rename generates syscall-errors, not file-errors.
+	(syscall-error (c)
+	  (outline "550 rename: ~A." 
+		   (strerror (excl::syscall-error-errno c)))))
       
       (setf (rename-from client) nil))))
 
@@ -1575,10 +1586,6 @@
       (if (and (restricted client) (out-of-bounds-p client fullpath))
 	  (return (outline "550 ~A: Permission denied.")))
       
-      (if (not (probe-file fullpath))
-	  (return
-	    (outline "550 ~A: No such file or directory." file)))
-      
       (if (and (anonymous client) *anonymous-chmod-disabled*)
 	  (return (outline "553 Chmod permission denied.")))
       
@@ -1589,7 +1596,9 @@
 	    (outline "501 CHMOD: Mode value must be between 0 and 0777")))
       
       (handler-case (chmod file mode)
-	(error () (return (outline "550 ~A: Operation failed." file))))
+	(file-error (c)
+	  (return (outline "550 ~A: ~A." 
+			   file (strerror (excl::syscall-error-errno c))))))
       
       (outline "200 CHMOD command successful."))))
 
