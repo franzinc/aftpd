@@ -1,6 +1,12 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2005-07-17  root  <root@gills.dancysoft.com>
+
+	* ftpd.cl: Version 1.0.26
+
+	* ftpd.cl: Added support for SITE UTIME command.
+	
 2005-05-25  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl: Bumped version number for new binary builds on ACL 7.0

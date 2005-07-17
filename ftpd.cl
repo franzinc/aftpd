@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.37 2005/05/25 20:01:41 dancy Exp $
+;; $Id: ftpd.cl,v 1.38 2005/07/17 15:55:03 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.25")
+(defvar *ftpd-version* "1.0.26")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -140,7 +140,8 @@
 
 (defparameter *sitecmds*
     '(("chmod" . site-chmod)
-      ("umask" . site-umask)))
+      ("umask" . site-umask)
+      ("utime" . site-utime)))
 
 (defparameter *logstream* nil)
 (defparameter *xferlogstream* nil)
@@ -1459,11 +1460,11 @@
 
 ;; YYYYMMDDhhmmss   (in GMT)
 (defun make-mdtm-string (utime)
-  (flet ((gmt-cast (ut)
-	   (let ((hc (nth-value 2 (decode-universal-time ut)))
-		 (hz (nth-value 2 (decode-universal-time ut 0))))
-	     (+ ut (* (- hz hc) #.(* 60 60))))))
-    (locale-print-time (gmt-cast utime) :fmt "%Y%m%d%H%M%S" :stream nil)))
+  (multiple-value-bind (sec min hour day month year)
+      (decode-universal-time utime 0)
+    (format nil "~4,'0d~2,'0d~2,'0d~2,'0d~2,'0d~2,'0d"
+	    year month day hour min sec)))
+  
 
 (defun parse-cmdline (cmdline)
   (let ((args (delimited-string-to-list cmdline " "))
@@ -1614,6 +1615,53 @@
       (outline "200 UMASK set to 0~o (was 0~o)" newumask (client-umask client))
       (umask newumask)
       (setf (client-umask client) newumask))))
+
+(defun site-utime (client cmdtail)
+  (block nil
+    (multiple-value-bind (matched whole filename atime mtime ctime tz)
+	(match-regexp
+	 "^\\(.*\\) \\([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\) \\([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\) \\([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\) \\(.*\\)$"
+	 cmdtail)
+      (declare (ignore whole))
+      
+      (if (not matched)
+	  (return (outline "501 Invalid arguments to SITE UTIME.")))
+      (if (string/= tz "UTC")
+	  (return (outline "501 Only UTC timezone is supported.")))
+      
+      (setf atime (timestring-to-ut atime))
+      (setf mtime (timestring-to-ut mtime))
+      (setf ctime (timestring-to-ut ctime))
+      
+      (let ((fullpath (make-full-path (pwd client) filename)))
+	(if (and (restricted client) (out-of-bounds-p client fullpath))
+	    (return (outline "550 ~A: Permission denied." filename)))
+	
+	(handler-case (utime fullpath atime mtime)
+	  (file-error (c)
+	    (outline "550 ~A: ~A" filename (strerror 
+					    (excl::syscall-error-errno c))))
+	  (error (c)
+	    (ftp-log "site umask ~A failed: ~A~%" fullpath c)
+	    (outline "550 ~A: Unknown error" filename))
+	  (:no-error (c)
+	    (declare (ignore c))
+	    (outline "200 SITE UTIME command successful.")))))))
+	
+
+;; YYYYMMDDHHMMSS
+;; 01234567890123
+(defun timestring-to-ut (string)
+  (apply #'encode-universal-time
+	 (mapcar #'parse-integer (list (subseq string 12 14)
+				       (subseq string 10 12)
+				       (subseq string 8 10)
+				       (subseq string 6 8)
+				       (subseq string 4 6)
+				       (subseq string 0 4)
+				       "0")))) ;; time zone
+	 
+  
 
 ;; doesn't use cmdtail
 (defun help-site (client cmdtail)
