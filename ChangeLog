@@ -1,6 +1,13 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2005-08-19  Ahmon Dancy  <dancy@dancy>
+
+	* ftpd.cl: Bumped version to 1.0.27:
+
+	When building passive socket or making an outgoing active
+	connection, always use the interface the data connection is on.
+
 2005-07-17  root  <root@gills.dancysoft.com>
 
 	* ftpd.cl: Version 1.0.26

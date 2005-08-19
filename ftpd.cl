@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.38 2005/07/17 15:55:03 dancy Exp $
+;; $Id: ftpd.cl,v 1.39 2005/08/19 19:05:54 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.26")
+(defvar *ftpd-version* "1.0.27")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -647,7 +647,7 @@
       (handler-case (setf sock (socket:make-socket
 				:type :hiper
 				:connect :passive
-				:local-host *interface*
+				:local-host (socket:local-host (client-sock client))
 				:local-port port))
 	(socket-error (c)
 	  (if (not (eq (stream-error-identifier c) :address-in-use))
@@ -774,7 +774,7 @@
       (with-root-privs ()
 	(socket:make-socket :remote-host (dataport-addr client)
 			    :remote-port (dataport-port client)
-			    :local-host *interface*
+			    :local-host (socket:local-host (client-sock client))
 			    :local-port *ftpdataport* 
 			    :reuse-address t
 			    :type :hiper))
