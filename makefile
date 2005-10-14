@@ -5,19 +5,28 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.22 2005/05/25 20:01:41 dancy Exp $
+# $Id: makefile,v 1.23 2005/10/14 18:14:28 dancy Exp $
 #
 # This makefile requires GNU make.
 
 platform = $(shell uname -s)
 
-mlisp = $(shell if test -x /storage1/acl70/mlisp; then \
-		   echo /storage1/acl70/mlisp; \
-		elif test -x /usr/fi/mlisp-7.0; then \
-		   echo /usr/fi/mlisp-7.0; \
-                else \
-	           echo NO-LISP; \
-	        fi)
+arch:=$(shell if [ `arch` = x86_64 ]; then echo amd64.64; else echo 86; fi)
+
+preferred_lisp_version=8.0.beta
+preferred_lisp=/fi/cl/$(preferred_lisp_version)/bin/linux$(arch)/mlisp
+alt_lisp0=/usr/local/acl70/mlisp
+alt_lisp1=/storage1/acl70/mlisp
+
+mlisp:=$(shell if test -x $(preferred_lisp); then \
+		echo $(preferred_lisp); \
+	     elif test -x $(alt_lisp0); then \
+		echo $(alt_lisp0); \
+	     elif test -x $(alt_lisp1); then \
+		echo $(alt_lisp1); \
+	     else \
+		echo mlisp; \
+	     fi)
 
 INSTALLDIR=/usr/local/sbin
 

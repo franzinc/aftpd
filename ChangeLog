@@ -1,6 +1,14 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2005-10-11  Ahmon Dancy  <dancy@dancy>
+1.0.28
+	
+	* ftpd.cl: Bumped version to 1.0.28 to indicate 8.0.beta build.
+
+	* Makefile: Find the build lisp in the same way as maild.
+
+	
 2005-08-19  Ahmon Dancy  <dancy@dancy>
 
 	* ftpd.cl: Bumped version to 1.0.27:
