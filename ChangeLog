@@ -1,6 +1,10 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2005-12-19  Kevin Layer  <layer@relay.known.net>
+
+	* makefile: preferred lisp => 8.0; better install for SuSE
+
 2005-10-11  Ahmon Dancy  <dancy@dancy>
 1.0.28
 	

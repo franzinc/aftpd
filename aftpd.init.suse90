@@ -1,0 +1,43 @@
+#! /bin/sh
+# $Id: aftpd.init.suse90,v 1.1 2005/12/19 18:58:51 layer Exp $
+### BEGIN INIT INFO
+# Provides:       aftpd ftpd
+# Required-Start: $local_fs $network
+# Required-Stop:  $local_fs $network
+# Default-Start:  3 5
+# Default-Stop:   0 1 2 6
+# Description:    Start the ftp daemon.
+### END INIT INFO
+
+prog=/usr/local/sbin/aftpd/aftpd
+
+if test ! -f $prog; then
+	echo "$prog does not exist."
+	exit 1
+fi
+
+. /etc/rc.status
+rc_reset
+
+case "$1" in
+  start)
+	echo -n "Start ftp server. "
+	startproc $prog
+	rc_status -v
+	;;
+  stop)
+	echo -n "Shutting down ftp server: "
+	killproc $prog
+	rc_status -v
+	;;
+  status)
+	;;
+  restart)
+	$0 stop
+	$0 start
+	rc_status
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac

@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.23 2005/10/14 18:14:28 dancy Exp $
+# $Id: makefile,v 1.24 2005/12/19 18:58:51 layer Exp $
 #
 # This makefile requires GNU make.
 
@@ -13,7 +13,7 @@ platform = $(shell uname -s)
 
 arch:=$(shell if [ `arch` = x86_64 ]; then echo amd64.64; else echo 86; fi)
 
-preferred_lisp_version=8.0.beta
+preferred_lisp_version=8.0
 preferred_lisp=/fi/cl/$(preferred_lisp_version)/bin/linux$(arch)/mlisp
 alt_lisp0=/usr/local/acl70/mlisp
 alt_lisp1=/storage1/acl70/mlisp
@@ -81,9 +81,15 @@ install-common: FORCE
 	cp -p binary-license.txt $(INSTALLDIR)/aftpd
 
 ifeq ($(platform),Linux)
+SUSE = $(shell if grep -qs SuSE /etc/issue; then echo yes; else echo no; fi)
 install: install-common
+ifeq ($(SUSE),yes)
+	cp -p aftpd.init.suse90 /etc/init.d/aftpd
+	/sbin/chkconfig --set aftpd on
+else
 	cp -p aftpd.init /etc/init.d/aftpd
 	/sbin/chkconfig aftpd reset
+endif
 endif
 
 ifeq ($(platform),SunOS)
