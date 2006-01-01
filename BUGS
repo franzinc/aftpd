@@ -1,4 +1,4 @@
-$Id: BUGS,v 1.10 2005/05/25 20:01:40 dancy Exp $
+$Id: BUGS,v 1.11 2006/01/01 14:57:38 dancy Exp $
 
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
 
@@ -7,8 +7,6 @@ Doesn't support the README file notice
 Need errno information to improve error responses.
 
 May want to support a list of users to not allow ftp logins from.
-
-Doesn't support SITE UTIME t3 20011207021328 20010314175752 20010719170637 UTC
 
 There a notations in the code marked with 'XXX' that indicate other
 functionality limits or trouble spots.
