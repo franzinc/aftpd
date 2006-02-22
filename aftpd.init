@@ -2,11 +2,12 @@
 #
 # aftpd       Allegro FTP daemon
 #
-# chkconfig: 345 99 01
+# chkconfig: - 99 01
 # description: FTP server
 # processname: aftpd
+# config: /etc/aftpd.cl
 
-installdir=/usr/local/sbin/aftpd
+installdir=/usr/sbin
 
 # Source function library.
 . /etc/init.d/functions

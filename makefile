@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.25 2006/01/01 14:57:38 dancy Exp $
+# $Id: makefile,v 1.26 2006/02/22 17:35:21 dancy Exp $
 #
 # This makefile requires GNU make.
 
@@ -25,14 +25,22 @@ mlisp:=$(shell if test -x $(preferred_lisp); then \
 		echo mlisp; \
 	     fi)
 
-INSTALLDIR=/usr/local/sbin
+prefix ?= /usr/local
+sbindir ?= $(prefix)/sbin
+sysconfdir ?= /etc
+libdir ?= $(prefix)/lib
+DOCDIR = $(prefix)/share/doc/aftpd
+
+EXE = $(sbindir)/aftpd
+LIB = $(libdir)/aftpd
 
 version = $(shell grep defvar..ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
 platform = $(shell uname -s)
 
-SOURCE_FILES = BUGS ChangeLog readme.txt binary-license.txt \
+DOC_FILES = BUGS ChangeLog readme.txt binary-license.txt
+SOURCE_FILES = $(DOC_FILES) \
 	config.cl ftpd.cl ipaddr.cl makefile \
-	rfc0959.txt S99aftpd aftpd.init rc.aftpd.sh
+	rfc0959.txt S99aftpd aftpd.init rc.aftpd.sh aftpd.logrotate
 
 default: FORCE
 	rm -f build.tmp
@@ -53,8 +61,7 @@ pre-dist: FORCE
 		aftpd.init \
 		rc.aftpd.sh \
 		config.cl \
-		readme.txt \
-	        binary-license.txt \
+		$(DOC_FILES) \
 	        aftpd-$(version)
 
 linux solaris freebsd: clean default pre-dist
@@ -70,22 +77,25 @@ clean: FORCE
 	rm -fr aftpd *.fasl autoloads.out build.tmp
 
 install-common: FORCE
-	rm -fr $(INSTALLDIR)/aftpd
-	mkdir -p $(INSTALLDIR)
-	cp -pr aftpd $(INSTALLDIR)
-	cp -p readme.txt $(INSTALLDIR)/aftpd
-	cp -p config.cl $(INSTALLDIR)/aftpd
-	cp -p binary-license.txt $(INSTALLDIR)/aftpd
+	rm -fr $(LIB) $(EXE)
+	mkdir -p $(LIB) $(sbindir)
+	cp -p aftpd/* $(LIB)
+	ln -s $(LIB)/aftpd $(EXE)
+	mkdir -p $(sysconfdir)
+	if [ ! -f $(sysconfdir)/aftpd.cl ]; then cp config.cl $(sysconfdir)/aftpd.cl; fi
+
+install-doc: FORCE
+	mkdir -p $(DOCDIR)
+	cp -p $(DOC_FILES) $(DOCDIR)
 
 ifeq ($(platform),Linux)
 SUSE = $(shell if grep -qs SuSE /etc/issue; then echo yes; else echo no; fi)
 install: install-common
+	mkdir -p $(RPM_BUILD_ROOT)/etc/init.d
 ifeq ($(SUSE),yes)
-	cp -p aftpd.init.suse90 /etc/init.d/aftpd
-	/sbin/chkconfig --set aftpd on
+	cp -p aftpd.init.suse90 $(RPM_BUILD_ROOT)/etc/init.d/aftpd
 else
-	cp -p aftpd.init /etc/init.d/aftpd
-	/sbin/chkconfig aftpd reset
+	cp -p aftpd.init $(RPM_BUILD_ROOT)/etc/init.d/aftpd
 endif
 endif
 

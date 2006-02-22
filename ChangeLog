@@ -1,6 +1,21 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2006-02-22  Ahmon Dancy  <dancy@dancy>
+
+	* Modifications for RPM packaging.
+
+	* new: aftpd.spec.
+	* modified: aftpd.init:  Do not specify any runlevels by default.
+	It is not appropriate to automatically enable a security sensitive
+	program like an FTP server.
+	* modified: config.cl:  Removed some text at the beginning of the
+	file.  This file will be used as /etc/aftpd.cl.
+	* modified: makefile:  Many changes to the install-common rule to
+	aid in rpm packaging.  
+	* new: aftpd.logrotate: Logrotate config.
+	
+	
 2005-12-19  Kevin Layer  <layer@relay.known.net>
 
 	* makefile: preferred lisp => 8.0; better install for SuSE

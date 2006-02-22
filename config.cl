@@ -1,17 +1,4 @@
-;; $Id: config.cl,v 1.5 2002/12/18 17:47:38 layer Exp $
-;;
-;; IMPORTANT:
-;;   This file merely contains the default values for aFTPd and changing
-;;   the values here without rebuilding from source will NOT change the
-;;   behavior of an already built aFTPd.
-;;
-;; To override a default configuration value, simply supply a setq of the
-;; variable with a new value in /etc/aftpd.cl.  For example, to change the
-;; log file, put this into /etc/aftpd.cl:
-;;
-;;  (setq *logfile* "/var/log/aftp")
-;;
-;; and restart aFTPd.
+;; $Id: config.cl,v 1.6 2006/02/22 17:35:21 dancy Exp $
 
 (defparameter *logfile* "/var/log/ftp")
 (defparameter *xferlog* "/var/log/xferlog")
