@@ -52,6 +52,11 @@ stop() {
 	return $RETVAL
 }
 
+restart() {
+    stop
+    start
+}
+
 # See how we were called.
 case "$1" in
   start)
@@ -64,8 +69,7 @@ case "$1" in
 	status aftpd
 	;;
   restart|reload)
-	stop
-	start
+	restart
 	;;
   condrestart)
 	[ -f /var/lock/subsys/aftpd ] && restart || :

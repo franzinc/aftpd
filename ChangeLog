@@ -1,6 +1,11 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2006-07-29  root  <root@gills.dancysoft.com>
+1.0.29
+	
+	* aftpd.init: Fixed the condrestart clause.
+
 2006-02-22  Ahmon Dancy  <dancy@dancy>
 
 	* Modifications for RPM packaging.
