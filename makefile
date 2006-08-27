@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.26 2006/02/22 17:35:21 dancy Exp $
+# $Id: makefile,v 1.27 2006/08/27 17:59:48 dancy Exp $
 #
 # This makefile requires GNU make.
 
@@ -108,5 +108,15 @@ ifeq ($(platform),FreeBSD)
 install: install-common
 	cp -p rc.aftpd.sh /usr/local/etc/rc.d/rc.aftpd.sh
 endif
+
+rpm: src
+	mkdir -p BUILD RPMS SRPMS
+	rpmbuild \
+		--define "_sourcedir $(CURDIR)" \
+		--define "_topdir $(CURDIR)" \
+		--define "_builddir $(CURDIR)/BUILD" \
+		--define "_rpmdir $(CURDIR)/RPMS" \
+		--define "_srcrpmdir $(CURDIR)/SRPMS" \
+		-bb aftpd.spec
 
 FORCE:
