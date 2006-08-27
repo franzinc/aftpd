@@ -1,4 +1,4 @@
-;; $Id: config.cl,v 1.6 2006/02/22 17:35:21 dancy Exp $
+;; $Id: config.cl,v 1.7 2006/08/27 17:55:27 dancy Exp $
 
 (defparameter *logfile* "/var/log/ftp")
 (defparameter *xferlog* "/var/log/xferlog")
@@ -128,7 +128,7 @@
 ;; See the 'Security notes' section of the README file for additional
 ;; information regarding conversions security.
 (defparameter *conversions*
-    '((".tar.bz2" . #.(vector "/bin/tar" "cjf" "-"))
+    '((".tar.bz2" . #("/bin/tar" "cjf" "-"))
       (".tar.gz" . #("/bin/tar" "czf" "-"))
       (".tar.Z" . #("/bin/tar" "cZf" "-"))
       (".tar" . #("/bin/tar" "cf" "-"))
