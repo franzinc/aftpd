@@ -4,3 +4,6 @@ aftpd
 aftpd.sh
 autoloads.out
 build.tmp
+RPMS
+SRPMS
+BUILD
