@@ -1,6 +1,20 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2006-08-30  root  <root@gills2.dancysoft.com>
+1.0.03
+	
+	* aftpd.spec: Parameterized 'release' and 'version'.  Also added
+	%postun section to restart the program during upgrades.
+
+	* makefile: Allow rpm release number to be specified in an
+	environment variable.  Defaults to '1'.  Also pass version
+	information to rpmbuild.
+
+	* ftpd.cl: open-logs: Use os-open so that the file permissions can
+	be set if a given logfile doesn't exist at open time.  Mode #o0600
+	is used to prevent casual browsing by non-privileged users.
+
 2006-07-29  root  <root@gills.dancysoft.com>
 1.0.29
 	

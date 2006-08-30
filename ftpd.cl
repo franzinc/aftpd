@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.41 2006/07/30 02:11:54 dancy Exp $
+;; $Id: ftpd.cl,v 1.42 2006/08/30 21:23:08 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.29")
+(defvar *ftpd-version* "1.0.30")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -47,6 +47,12 @@
   (defparameter *extfcrlf* 
       (find-composed-external-format :e-crlf (crlf-base-ef :latin1))))
 
+(defmacro with-umask ((newumask) &body body)
+  (let ((oldumasksym (gensym)))
+    `(let ((,oldumasksym (umask ,newumask)))
+       (unwind-protect
+	   (progn ,@body)
+	 (umask ,oldumasksym)))))
 
 (defclass client () 
   ((sock :initarg :sock :reader client-sock)
@@ -945,13 +951,6 @@
 (defun cmd-appe (client file)
   (store-common client file :append))
 
-(defmacro with-umask ((newumask) &body body)
-  (let ((oldumasksym (gensym)))
-    `(let ((,oldumasksym (umask ,newumask)))
-       (unwind-protect
-	   (progn ,@body)
-	 (umask ,oldumasksym)))))
-
 (defun store-common (client file if-exists)
   (block nil
     (let ((fullpath (make-full-path (pwd client) file)))
@@ -1674,27 +1673,24 @@
 
 ;;;  Logging
 
+(defconstant *log-open-flags*
+    (logior *o-wronly* *o-append* *o-creat*))
+
 (defun open-logs ()
   (setf *logstream*
-    (if *debug*
-	*standard-output*
-      (open *logfile*
-	    :direction :output
-	    :if-does-not-exist :always-append
-	    :if-exists :always-append)))
+    (if* *debug*
+       then *standard-output*
+       else (os-open *logfile* *log-open-flags* #o600)))
   (setf *xferlogstream*
-    (if *debug*
-	*standard-output*
-      (open *xferlog*
-	    :direction :output
-	    :if-does-not-exist :always-append
-	    :if-exists :always-append))))
+    (if* *debug*
+       then *standard-output*
+       else (os-open *xferlog* *log-open-flags* #o0600))))
+
   
 (defun close-logs ()
-  (if (not *debug*)
-      (progn
-	(close *logstream*)
-	(close *xferlogstream*))))
+  (when (not *debug*)
+    (close *logstream*)
+    (close *xferlogstream*)))
 
 (defun ftp-log (&rest args)
   (format *logstream* "~A [~D]: ~?"

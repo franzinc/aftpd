@@ -1,8 +1,8 @@
-# $Id: aftpd.spec,v 1.1 2006/02/22 17:35:21 dancy Exp $
+# $Id: aftpd.spec,v 1.2 2006/08/30 21:23:08 dancy Exp $
 Summary: Allegro FTP daemon
 Name: aftpd
-Version: 1.0.28
-Release: 1
+Version: %{version}
+Release: %{release}
 License: LLGPL
 Group: System Environment/Daemons
 Provides: ftpserver
@@ -55,6 +55,12 @@ if [ $1 = 0 ]; then
  /sbin/service aftpd stop > /dev/null 2>&1
  /sbin/chkconfig --del aftpd
 fi
+
+%postun
+if [ "$1" != 0 ]; then
+	/sbin/service aftpd condrestart 2>&1 > /dev/null
+fi
+exit 0
 
 %changelog
 * Tue Feb 21 2006 Ahmon Dancy <dancy@dancy> - 1.0.28-1
