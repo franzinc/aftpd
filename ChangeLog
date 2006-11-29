@@ -55,13 +55,15 @@
 	connection, always use the interface the data connection is on.
 
 2005-07-17  root  <root@gills.dancysoft.com>
-
+1.0.26
+	
 	* ftpd.cl: Version 1.0.26
 
 	* ftpd.cl: Added support for SITE UTIME command.
 	
 2005-05-25  Ahmon Dancy  <dancy@dancy>
-
+1.0.25
+	
 	* ftpd.cl: Bumped version number for new binary builds on ACL 7.0
 
 	* ftpd.cl: Tweaked the error handling on a few filesystem calls.
