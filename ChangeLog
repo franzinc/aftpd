@@ -2,7 +2,7 @@
 *** [and leave this message at the top of the file]
 
 2006-08-30  root  <root@gills2.dancysoft.com>
-1.0.03
+1.0.30
 	
 	* aftpd.spec: Parameterized 'release' and 'version'.  Also added
 	%postun section to restart the program during upgrades.
