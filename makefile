@@ -5,7 +5,7 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.28 2006/08/30 21:23:08 dancy Exp $
+# $Id: makefile,v 1.29 2006/11/29 18:43:19 dancy Exp $
 #
 # This makefile requires GNU make.
 
@@ -121,6 +121,7 @@ rpm: src
 		--define "_builddir $(CURDIR)/BUILD" \
 		--define "_rpmdir $(CURDIR)/RPMS" \
 		--define "_srcrpmdir $(CURDIR)/SRPMS" \
+		--sign \
 		-bb aftpd.spec
 
 FORCE:
