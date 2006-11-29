@@ -1,0 +1,24 @@
+#!/bin/sh
+
+REPOHOST=fs1
+REPOPATH=/storage1/franz
+
+arch=`arch`
+if [ "$arch" != "x86_64" ]; then
+	arch=i386
+fi
+
+host="root@$REPOHOST"
+path=$REPOPATH/$arch
+
+latest=`/bin/ls -t RPMS/$arch/aftpd-*.rpm | grep -v debuginfo | head -1`
+
+ssh $host "cd $path && rm -f aftpd-*"
+scp $latest $host:$path
+ssh $host "createrepo $path"
+
+
+
+
+
+
