@@ -1,6 +1,16 @@
 *** Don't forget to consider incrementing the version number in ftpd.cl
 *** [and leave this message at the top of the file]
 
+2007-07-18  Ahmon Dancy  <dancy@dancy>
+1.0.31
+	
+	* makefile: Build w/ 8.1
+
+	* install-repo: Pass --update to createrepo
+
+	* ftpd.cl: Set LC_TIME=POSIX environment for /bin/ls command to
+	maintain expected time format for FTP clients.
+
 2006-08-30  root  <root@gills2.dancysoft.com>
 1.0.30
 	

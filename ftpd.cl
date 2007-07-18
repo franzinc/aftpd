@@ -5,11 +5,11 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.42 2006/08/30 21:23:08 dancy Exp $
+;; $Id: ftpd.cl,v 1.43 2007/07/18 16:19:55 dancy Exp $
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.30")
+(defvar *ftpd-version* "1.0.31")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -254,7 +254,7 @@
 
 ;;; 
 
-(defun spawn-command (cmdvec)
+(defun spawn-command (cmdvec &key env)
   (if (not (vectorp cmdvec))
       (error "Ack!! non-vector passed to spawn-command"))
   (multiple-value-bind (stdout stderr pid)
@@ -262,6 +262,7 @@
 			 :input "/dev/null"
 			 :output :stream
 			 :error-output :stream
+			 :environment env
 			 :wait nil)
     (mp:process-run-function "stderr reader" 'stderr-reader stderr)
     (values stdout pid)))
@@ -273,9 +274,10 @@
 	       (ftp-log "~A~%" line)))
     (ignore-errors (close stderr))))
 
-(defmacro with-external-command ((streamvar cmdvec) &body body)
+(defmacro with-external-command ((streamvar cmdvec &key env) &body body)
   (let ((pidvar (gensym)))
-    `(multiple-value-bind (,streamvar ,pidvar) (spawn-command ,cmdvec)
+    `(multiple-value-bind (,streamvar ,pidvar) 
+	 (spawn-command ,cmdvec :env ,env)
        (unwind-protect (progn ,@body)
 	 (close ,streamvar)
 	 (sys:reap-os-subprocess :pid ,pidvar)))))
@@ -1209,7 +1211,8 @@
 				(concatenate 'vector
 				  #.(vector "/bin/ls" "/bin/ls")
 				  default-options
-				  options))
+				  options)
+				:env '("LC_TIME" "POSIX"))
 	  (let (line)
 	    (while (setf line (read-line stream nil nil))
 		   (outline "~A" line)))))

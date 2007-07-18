@@ -5,15 +5,15 @@
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
 #
-# $Id: makefile,v 1.29 2006/11/29 18:43:19 dancy Exp $
+# $Id: makefile,v 1.30 2007/07/18 16:19:55 dancy Exp $
 #
 # This makefile requires GNU make.
 
 platform = $(shell uname -s)
 
-preferred_lisp=/fi/cl/8.0/bin/mlisp
-alt_lisp0=/usr/local/acl80/mlisp
-alt_lisp1=/storage1/acl80/mlisp
+preferred_lisp=/fi/cl/8.1/bin/mlisp
+alt_lisp0=/usr/local/acl81/mlisp
+alt_lisp1=/storage1/acl81/mlisp
 
 mlisp:=$(shell if test -x $(preferred_lisp); then \
 		echo $(preferred_lisp); \

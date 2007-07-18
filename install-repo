@@ -15,7 +15,7 @@ latest=`/bin/ls -t RPMS/$arch/aftpd-*.rpm | grep -v debuginfo | head -1`
 
 ssh $host "cd $path && rm -f aftpd-*"
 scp $latest $host:$path
-ssh $host "createrepo $path"
+ssh $host "createrepo -q --update $path"
 
 
 
