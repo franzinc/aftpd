@@ -5,7 +5,7 @@
 ;; (http://opensource.franz.com/preamble.html),
 ;; known as the LLGPL.
 ;;
-;; $Id: ftpd.cl,v 1.43 2007/07/18 16:19:55 dancy Exp $
+;; $Id: ftpd.cl,v 1.44 2007/07/18 16:21:28 dancy Exp $
 
 (in-package :user)
 
@@ -1212,7 +1212,7 @@
 				  #.(vector "/bin/ls" "/bin/ls")
 				  default-options
 				  options)
-				:env '("LC_TIME" "POSIX"))
+				:env '(("LC_TIME" "POSIX")))
 	  (let (line)
 	    (while (setf line (read-line stream nil nil))
 		   (outline "~A" line)))))
