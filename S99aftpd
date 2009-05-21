@@ -1,6 +1,4 @@
 #!/sbin/sh
-#
-# $Id: S99aftpd,v 1.1 2002/09/16 21:40:30 dancy Exp $
 
 installdir=/usr/local/sbin/aftpd
 

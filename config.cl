@@ -1,4 +1,3 @@
-;; $Id: config.cl,v 1.7 2006/08/27 17:55:27 dancy Exp $
 
 (defparameter *logfile* "/var/log/ftp")
 (defparameter *xferlog* "/var/log/xferlog")

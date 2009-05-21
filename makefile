@@ -1,11 +1,9 @@
-# This software is Copyright (c) Franz Inc., 2001-2002.
+# This software is Copyright (c) Franz Inc., 2001-2009.
 # Franz Inc. grants you the rights to distribute
 # and use this software as governed by the terms
 # of the Lisp Lesser GNU Public License
 # (http://opensource.franz.com/preamble.html),
 # known as the LLGPL.
-#
-# $Id: makefile,v 1.30 2007/07/18 16:19:55 dancy Exp $
 #
 # This makefile requires GNU make.
 

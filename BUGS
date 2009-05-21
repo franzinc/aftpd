@@ -1,4 +1,3 @@
-$Id: BUGS,v 1.11 2006/01/01 14:57:38 dancy Exp $
 
 Doesn't handle asynchronous QUIT/ABOR/STAT.  Probably never will.
 

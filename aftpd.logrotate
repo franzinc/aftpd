@@ -1,4 +1,3 @@
-# $Id: aftpd.logrotate,v 1.1 2006/02/22 17:25:53 dancy Exp $
 
 /var/log/ftp {
     nocompress

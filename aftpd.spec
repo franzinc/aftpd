@@ -1,4 +1,3 @@
-# $Id: aftpd.spec,v 1.2 2006/08/30 21:23:08 dancy Exp $
 Summary: Allegro FTP daemon
 Name: aftpd
 Version: %{version}

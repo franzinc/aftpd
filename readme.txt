@@ -11,8 +11,6 @@ Table of Contents:
    C. Restricted users
 3. Security notes
 
-$Id: readme.txt,v 1.5 2005/05/25 20:01:41 dancy Exp $
-
 *******************************************************************************
 1. Installation
 

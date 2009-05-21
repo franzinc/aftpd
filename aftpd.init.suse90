@@ -1,5 +1,4 @@
 #! /bin/sh
-# $Id: aftpd.init.suse90,v 1.1 2005/12/19 18:58:51 layer Exp $
 ### BEGIN INIT INFO
 # Provides:       aftpd ftpd
 # Required-Start: $local_fs $network
