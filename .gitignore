@@ -1,0 +1,10 @@
+/Makefile.local
+/fi-apps-common
+/BUILD
+/RPMS
+/SRPMS
+/*.gz
+/aftpd.spec
+/aftpd/
+/autoloads.out
+/build.tmp

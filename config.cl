@@ -137,5 +137,6 @@
       (".Z" . #("/bin/compress" "-c"))))
 
 (defparameter *debug* nil)
+(defparameter *test* nil)
 
 ;; End of configuration variables.

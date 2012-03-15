@@ -1,4 +1,4 @@
-;; This software is Copyright (c) Franz Inc., 2001-2009.
+;; This software is Copyright (c) Franz Inc., 2001-2012.
 ;; Franz Inc. grants you the rights to distribute
 ;; and use this software as governed by the terms
 ;; of the Lisp Lesser GNU Public License
@@ -7,7 +7,7 @@
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.0.31")
+(defvar *ftpd-version* "1.0.32")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -480,11 +480,11 @@
 	      (ftp-log "Connection limit (~D) exceeded.~%" *maxusers*)
 	      (return :quit))
       
-      (if* (anonymous client)
-	 then
-	      (setf (anonymous client) pass)
-	 else
-	      (if (or (null pwent)
+      (if* *test*
+	 thenret
+       elseif (anonymous client)
+	 then (setf (anonymous client) pass)
+	 else (if (or (null pwent)
 		      (not (string= (pwent-passwd pwent)
 				    (crypt pass (pwent-passwd pwent)))))
 		  (return
@@ -517,24 +517,25 @@
 				  :test #'string=)
 			  (setf (restricted client) t))))
       
-      ;; Set up
-      (handler-case (setegid (pwent-gid pwent))
-	(error (c)
-	  (ftp-log "Failed to setegid(~D): ~a~%" (pwent-gid pwent) c)
-	  (outline "421 Local configuration error.")
-	  (return :quit)))
+      (when (not *test*)
+	;; Set up
+	(handler-case (setegid (pwent-gid pwent))
+	  (error (c)
+	    (ftp-log "Failed to setegid(~D): ~a~%" (pwent-gid pwent) c)
+	    (outline "421 Local configuration error.")
+	    (return :quit)))
       
-      (handler-case (initgroups (user client) (pwent-gid pwent))
-	(error (c)
-	  (ftp-log "Failed to initgroups (~a)~%" c)
-	  (outline "421 Local configuration error.")
-	  (return :quit)))
+	(handler-case (initgroups (user client) (pwent-gid pwent))
+	  (error (c)
+	    (ftp-log "Failed to initgroups (~a)~%" c)
+	    (outline "421 Local configuration error.")
+	    (return :quit)))
       
-      (handler-case (seteuid (pwent-uid pwent))
-	(error (c)
-	  (ftp-log "Failed to seteuid(~D): ~a~%" (pwent-uid pwent) c)
-	  (outline "421 Local configuration error.")
-	  (return :quit)))
+	(handler-case (seteuid (pwent-uid pwent))
+	  (error (c)
+	    (ftp-log "Failed to seteuid(~D): ~a~%" (pwent-uid pwent) c)
+	    (outline "421 Local configuration error.")
+	    (return :quit))))
       
       (when (null (ftp-chdir (pwent-dir pwent)))
 	(ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
@@ -1733,7 +1734,7 @@ Note: -p and -f override any setting in the config file.~%~%"
 
 (defun main (&rest args)
   (system:with-command-line-arguments
-      ("df:p:" debug-mode configfile ftpport)
+      ("df:p:t" debug-mode configfile ftpport test-mode)
       (rest :usage *usage*)
     (declare (ignore image))
     (when configfile
@@ -1744,6 +1745,12 @@ Note: -p and -f override any setting in the config file.~%~%"
     (load-config-file)
     
     (when debug-mode (setq *debug* t))
+    (when test-mode
+      (warn "~
+It is VERY DANGEROUS to run in test mode.  ~
+Never run a server in test mode on a machine open to people you do not ~
+trust 100%!  It gives them unfettered access to your files!")
+      (setq *debug* t *test* t))
     (when ftpport (setq *ftpport* ftpport))
     (when rest (usage))
 
@@ -1782,6 +1789,8 @@ Note: -p and -f override any setting in the config file.~%~%"
     (setf files (append files '(:srecord :locale))) ;; add modules here
     (setq files (cons "config.cl" files))
     (compile-file-if-needed "ftpd.cl")
-    (generate-executable "aftpd" files)))
+    (generate-executable "aftpd" files
+			 :runtime :standard
+			 )))
 
 
