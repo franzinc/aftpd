@@ -133,7 +133,7 @@ REPOBASE                 ?= /storage1/franz/common
 
 REPODIR=$(REPOBASE)/$(ARCH)
 
-install-repo:
+install-repo: FORCE
 ifeq ($(REMOVE_PREVIOUS_VERSIONS),yes)
 	ssh root@$(REPOHOST) "rm -f $(REPODIR)/aftpd-*"
 endif
