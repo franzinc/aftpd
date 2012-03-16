@@ -5,7 +5,6 @@ Release: %{release}
 License: LLGPL
 Group: System Environment/Daemons
 Prereq: chkconfig
-Prereq: service
 Requires: logrotate
 URL: http://opensource.franz.com/aftpd/
 Source0: %{name}-%{version}.tar.gz
