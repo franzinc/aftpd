@@ -4,7 +4,7 @@ Version: __VERSION__
 Release: %{release}
 License: LLGPL
 Group: System Environment/Daemons
-Prereq: chkconfig
+#Prereq: chkconfig
 Requires: logrotate
 URL: http://opensource.franz.com/aftpd/
 Source0: %{name}-%{version}.tar.gz
@@ -29,7 +29,8 @@ make
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT/etc/init.d
 mkdir -p $RPM_BUILD_ROOT/etc/logrotate.d
-mkdir -p $RPM_BUILD_ROOT/usr/{sbin,lib}
+mkdir -p $RPM_BUILD_ROOT/usr/sbin
+mkdir -p $RPM_BUILD_ROOT%{_libdir}
 mkdir -p $RPM_BUILD_ROOT/usr/share/doc/aftpd-__VERSION__
 make ROOT=$RPM_BUILD_ROOT install
 # Need to re-make the aftpd symbolic link here so that rpm knows about it.
@@ -45,7 +46,7 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root,-)
 /etc/init.d/aftpd
-/usr/lib/aftpd
+%{_libdir}/aftpd
 /usr/sbin/aftpd
 %config(noreplace) /etc/aftpd.cl
 %config(noreplace) /etc/logrotate.d/aftpd

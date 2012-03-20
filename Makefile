@@ -26,7 +26,11 @@ LISP ?= mlisp
 
 ROOT ?= /
 prefix ?= $(ROOT)/usr
+ifeq ($(ARCH),x86_64)
+libdir ?= $(prefix)/lib64
+else
 libdir ?= $(prefix)/lib
+endif
 sbindir ?= $(prefix)/sbin
 
 version := $(shell grep defvar..ftpd-version ftpd.cl | sed -e 's,.*"\([0-9.]*\)".*,\1,')
