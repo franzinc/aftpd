@@ -132,8 +132,8 @@ rpm: aftpd.spec src-tarball rpm-setup
 		--target $(ARCH) -ba aftpd.spec
 
 REMOVE_PREVIOUS_VERSIONS ?= no
-REPOHOST                 ?= fs1
-REPOBASE                 ?= /storage1/franz/common
+REPOHOST                 ?= cobweb
+REPOBASE                 ?= /www/sites/yum
 
 REPODIR=$(REPOBASE)/$(ARCH)
 
