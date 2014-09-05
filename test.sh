@@ -6,9 +6,14 @@ rm -fr test
 
 mkdir -p test/var/run
 mkdir -p test/var/log
-mkdir -p test/tmp1
+for sub in test/tmp1 test/tmp2; do
+    rm -fr $sub
+    mkdir -p $sub
+done
 
-./aftpd/aftpd -t -d -f test.config -p 8888 &
+testport=8888
+
+./aftpd/aftpd -t -d -f test.config -p $testport &
 pid=$!
 trap "kill -HUP $pid" 0
 
@@ -16,47 +21,47 @@ echo PID=$pid
 
 sleep 2
 
-curl="curl --user layer:xxx"
-url="ftp://quadra.franz.com:8888/"
+me=`id -un`
+curl="curl --user $me:password"
+pwd=`pwd`
+url="ftp://localhost:$testport/$pwd/test/tmp1"
+
+echo url: $url
 
 ########################### test 1: copy to
 
-files=`echo /fi/import/unix/*.gz`
+# use source files, etc for testing
+files=`find . -maxdepth 1 -type f`
+
+# Upload
 for file in $files; do
-    $curl -T $file $url/acl/layer/fi-rpm-build/aftpd.i386/test/tmp1/
+    $curl --upload-file $file $url/$file
 done
-for file in test/tmp1/*.gz; do
+
+# Verify
+for file in test/tmp1/*; do
     echo Checking $file...
-    if ! cmp -s $file /fi/import/unix/$(basename $file); then
-	echo ERROR: bad: test/tmp/$(basename $file)
+    if ! cmp -s $file $(basename $file); then
+	echo ERROR: bad: $file
 	exit 1
     fi
 done
-ls="/bin/ls -1"
-if test $($ls $files | wc -l) != $($ls test/tmp1/*.gz | wc -l); then
-    echo ERROR: counts are off from /fi/import/unix and test/tmp1/
-    exit 1
-fi
 
 ########################### test 2: copy from
 
-mkdir test/tmp2
-
-files="$(echo $PWD/test/tmp1/*.gz)"
-for file in $files; do
-    $curl -o test/tmp2/$(basename $file) $url$file
+# Download
+for file in test/tmp1/*; do
+    $curl -o test/tmp2/$(basename $file) $url/$(basename $file)
 done
-for file in test/tmp2/*.gz; do
+
+# Verify
+for file in test/tmp2/*; do
     echo Checking $file...
-    if ! cmp -s $file test/tmp2/$(basename $file); then
-	echo ERROR: bad: test/tmp2/$(basename $file)
+    if ! cmp -s $file test/tmp1/$(basename $file); then
+	echo ERROR: bad: $file
 	exit 1
     fi
 done
-if test $($ls $files | wc -l) != $($ls test/tmp2/*.gz | wc -l); then
-    echo ERROR: counts are off from test/tmp1/ and test/tmp2/
-    exit 1
-fi
 
 ###########################
 
