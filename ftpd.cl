@@ -1737,6 +1737,16 @@ Note: -p and -f override any setting in the config file.~%~%"
       ("df:p:t" debug-mode configfile ftpport test-mode)
       (rest :usage *usage*)
     (declare (ignore image))
+    
+    (when ftpport
+      (let ((port (ignore-errors (parse-integer ftpport))))
+	(when (or (null port) 
+		  (< port 1)
+		  (> port 65535))
+	  (error "Invalid port number: ~a" ftpport))
+	;; Acceptable
+	(setf ftpport port)))
+    
     (when configfile
       (when (not (probe-file configfile))
 	(error "Config file ~a does not exist." configfile))
