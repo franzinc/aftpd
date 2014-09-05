@@ -70,10 +70,8 @@ endif
 aftpd/aftpd: FORCE
 	rm -f build.tmp
 	rm -fr aftpd
-	echo '(load "config.cl")' >> build.tmp
-	echo '(setq excl::*break-on-warnings* t)' >> build.tmp
-	echo '(compile-file "ftpd.cl")' >> build.tmp
-	echo '(load "ftpd.fasl")' >> build.tmp
+	echo '(setq excl::*break-on-warnings* t)' >> build.tmp	
+	echo '(load "load.cl")' >> build.tmp
 	echo '(build)' >> build.tmp
 	$(LISP) -batch -q -L build.tmp -kill
 

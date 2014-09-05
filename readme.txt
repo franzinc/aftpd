@@ -34,8 +34,7 @@ aFTPd is referenced in the preamble as the "LIBRARY."
 Download and unpack the source code.  Then, startup Allegro CL
 Enterprise and type, in the directory containing the source code:
 
-	   :ld config.cl
-	   :cl ftpd.cl
+	   :ld load.cl
 	   (build)
 
 or just type "make" (requires GNU make, which is typically installed
@@ -254,7 +253,7 @@ cd ..:  allowed because absolute pathname is /home/dancy again.
 3. Security notes
 
 Since this FTP server is written in Common Lisp, it should be free of
-buffer overflows.  None of the foreign functions used fill in any
+buffer overflows.  None of the used foreign functions populate any
 variable-sized buffers so things should be safe on that front as well.
 One target of attack may be the conversions.  Bugs in conversion
 programs could lead to security compromises.  For example, gzip-1.2.4
