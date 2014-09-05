@@ -137,11 +137,6 @@ home directory)
     FreeBSD:
       mknod null c 2 2; chmod a+w null
 
-/bin/ls
-    Ideally (from a security standpoint) it should be statically
-    linked.  If not, then the necessary shared libraries should exist
-    in the anonymous ftp account home directory.
-
 Optional:
 
 /welcome.msg
@@ -161,11 +156,6 @@ Optional:
 
 No files/directories should be writeable except for those directories
 in which you want to allow anonymous FTP uploads.
-
-If the `ls' or `dir' commands from an FTP client show no files, and
-you know there are files to list, check that `ls' runs while
-chroot'd.  It may be that some shared library needed by `ls', if it is
-dynamically linked, is not there.
 
 *******************************************************************************
 2B. Configuration: Firewall considerations
