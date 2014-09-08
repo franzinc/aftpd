@@ -50,7 +50,7 @@ SUSE92 := $(shell rpm -q suse-release-9.2 >/dev/null && echo yes)
 
 DOC_FILES = BUGS ChangeLog readme.txt binary-license.txt
 SOURCEFILES = $(DOC_FILES) \
-	config.cl ftpd.cl ipaddr.cl Makefile \
+	config.cl ftpd.cl ipaddr.cl load.cl Makefile \
 	rfc0959.txt S99aftpd aftpd.init rc.aftpd.sh aftpd.logrotate
 
 ifeq ($(at_franz),t)
