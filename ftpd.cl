@@ -1480,10 +1480,10 @@ like `make' that rely on file timestamps.
     (let ((fullpath (make-full-path (pwd client) file)))
 
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." file)))
 
       (if (and (anonymous client) *anonymous-delete-disabled*)
-	  (return (outline "553 Delete permission denied.")))
+	  (return (outline "553 Delete permission denied." file)))
       
       (handler-case (delete-file fullpath)
 	(file-error (c)
@@ -1497,7 +1497,7 @@ like `make' that rely on file timestamps.
     (let ((fullpath (make-full-path (pwd client) file)))
 
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." file)))
       
       (if (and (anonymous client) *anonymous-rmdir-disabled*)
 	  (return (outline "553 RMD Permission denied.")))
@@ -1514,7 +1514,7 @@ like `make' that rely on file timestamps.
     (let ((fullpath (make-full-path (pwd client) newdir)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." newdir)))
       
       (if (and (anonymous client) *anonymous-mkdir-disabled*)
 	  (return (outline "553 MKD Permission denied.")))
@@ -1567,7 +1567,7 @@ like `make' that rely on file timestamps.
     (let ((fullpath (make-full-path (pwd client) file)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." file)))
       
       (let ((mtime 
 	     (handler-case (file-write-date fullpath)
@@ -1652,7 +1652,7 @@ like `make' that rely on file timestamps.
     (let ((fullpath (make-full-path (pwd client) from)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." from)))
       
       (if (not (probe-file fullpath))
 	  (return (outline "550 ~A: No such file or directory." from)))
@@ -1708,7 +1708,7 @@ like `make' that rely on file timestamps.
 		     cmdtail)))
       
       (if (and (restricted client) (out-of-bounds-p client fullpath))
-	  (return (outline "550 ~A: Permission denied.")))
+	  (return (outline "550 ~A: Permission denied." cmdtail)))
       
       (if (and (anonymous client) *anonymous-chmod-disabled*)
 	  (return (outline "553 Chmod permission denied.")))
