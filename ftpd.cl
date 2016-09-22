@@ -13,6 +13,7 @@
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
 
 (eval-when (compile eval load)
+  (require :regexp)
   (require :efmacs)
   (require :osi)
   (use-package :excl.osi)
