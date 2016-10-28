@@ -7,7 +7,7 @@
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.1.1")
+(defvar *ftpd-version* "1.1.2")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -1027,7 +1027,8 @@
       (if (null (data-connection-prepared-p client))
 	  (return (outline "452 No data connection has been prepared.")))
       
-      (if (file-directory-p fullpath)
+      (if (and (probe-file fullpath)
+	       (file-directory-p fullpath))
 	  (return (outline "550: ~a: is a directory." file)))
       
       (with-umask ((if (and (anonymous client) *quarantine-anonymous-uploads*)
