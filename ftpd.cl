@@ -7,12 +7,14 @@
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.1.0")
+(defvar *ftpd-version* "1.1.1")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
 
 (eval-when (compile eval load)
+  ;; upload errors indicate this is needed
+  (require :disasm)
   (require :regexp)
   (require :efmacs)
   (require :osi)
