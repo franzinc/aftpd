@@ -7,7 +7,7 @@
 
 (in-package :user)
 
-(defvar *ftpd-version* "1.1.2")
+(defvar *ftpd-version* "1.1.3")
 
 (eval-when (compile)
   (proclaim '(optimize (safety 1) (space 1) (speed 3) (debug 2))))
@@ -266,6 +266,12 @@
 	  (rest args))
   (force-output *logstream*))
 
+(defun ftp-log-client (client format &rest args)
+  (apply #'ftp-log
+	  (concatenate 'string "~a: " format) 
+	  (socket:ipaddr-to-dotted (socket:remote-host (client-sock client)))
+	  args))
+
 (defun xfer-log (client fullpath direction bytes)
   (format *xferlogstream* 
 	  "(~A ~A ~S ~S ~D ~S) ;; ~A ~A ~%"
@@ -396,8 +402,6 @@
   
   (with-open-logs ()
     
-    (ftp-log "Connection made from ~A.~%"(socket:ipaddr-to-dotted (socket:remote-host sock)))
-
     ;; Each connection should have its own random state (used by
     ;; the PASV command to generate port numbers.  
     (make-random-state t)
@@ -406,15 +410,18 @@
 	  (*outlinestream* sock)
 	  (*locale* (find-locale :c))
 	  (*print-pretty* nil))
+      
+      (ftp-log-client client "Connected~%")
     
       (handler-bind 
 	  ;; FIXME: Don't backtrace on socket errors
 	  ((error #'(lambda (e) 
-		      (ftp-log "~a~%"
-			       (with-output-to-string (s)
-				 (format s "Unhandled error: ~a~%" e)
-				 (format s "Backtrace:~%")
-				 (top-level.debug:zoom s :count nil :all t)))
+		      (let ((backtrace 
+			     (with-output-to-string (s)
+			       (format s "Unhandled error: ~a~%" e)
+			       (format s "Backtrace:~%")
+			       (top-level.debug:zoom s :count nil :all t))))
+			(ftp-log-client client "~a~%" backtrace))
 		      (return-from ftpd-main))))
 	
 	(umask (client-umask client))
@@ -444,13 +451,8 @@
       
       (if (and (not (anonymous client)) 
 	       (equalp cmdname "pass"))
-	  (ftp-log "~A: PASS XXXXXX~%"
-		  (socket:ipaddr-to-dotted 
-		   (socket:remote-host (client-sock client))))
-	(ftp-log "~A: ~A~%"
-		(socket:ipaddr-to-dotted 
-		 (socket:remote-host (client-sock client)))
-		cmdstring))
+	  (ftp-log-client client "PASS XXXXXX~%")
+	(ftp-log-client client "~A~%" cmdstring))
       
       (setf entry (gethash cmdname *cmds*))
       (if (null entry)
@@ -466,10 +468,7 @@
 		 "")))))
 
 (defun cleanup (client reason)
-  (ftp-log "Client from ~A disconnected (~a).~%"
-	  (socket:ipaddr-to-dotted
-	   (socket:remote-host (client-sock client)))
-	  reason)
+  (ftp-log-client client "Disconnected (~a).~%" reason)
   (cleanup-data-connection client))
 
 (defmacro with-root-privs (() &body body)
@@ -538,7 +537,7 @@
 	 then
 	      (dump-msg client "530" *toomanymsg*)
 	      (outline "530 Connection limit exceeded.")
-	      (ftp-log "Connection limit (~D) exceeded.~%" *maxusers*)
+	      (ftp-log-client client "Connection limit (~D) exceeded.~%" *maxusers*)
 	      (return :quit))
       
       (if* (anonymous client)
@@ -549,7 +548,8 @@
 		       ;; FIXME: Add PAM support
 		       (not (string= (pwent-passwd pwent)
 				     (crypt pass (pwent-passwd pwent))))))
-	 then (setf (user client) nil)
+	 then (ftp-log-client client "Login failed for user ~s~%" (user client))
+	      (setf (user client) nil)
 	      (setf (pwent client) nil)		  
 	      (sleep *badpwdelay*)
 	      (outline "530 Login incorrect.")
@@ -559,7 +559,7 @@
       ;; Good to go
 
       ;; Successful authentication
-      (ftp-log "User ~A logged in.~%" (user client))
+      (ftp-log-client client "Login successful for user ~s~%" (user client))
       (setf (pwd client) (pwent-dir pwent))
 
       (if* (anonymous client)
@@ -582,24 +582,24 @@
 	;; Set up
 	(handler-case (setegid (pwent-gid pwent))
 	  (error (c)
-	    (ftp-log "Failed to setegid(~D): ~a~%" (pwent-gid pwent) c)
+	    (ftp-log-client client "Failed to setegid(~D): ~a~%" (pwent-gid pwent) c)
 	    (outline "421 Local configuration error.")
 	    (return :quit)))
       
 	(handler-case (initgroups (user client) (pwent-gid pwent))
 	  (error (c)
-	    (ftp-log "Failed to initgroups (~a)~%" c)
+	    (ftp-log-client client "Failed to initgroups (~a)~%" c)
 	    (outline "421 Local configuration error.")
 	    (return :quit)))
       
 	(handler-case (seteuid (pwent-uid pwent))
 	  (error (c)
-	    (ftp-log "Failed to seteuid(~D): ~a~%" (pwent-uid pwent) c)
+	    (ftp-log-client client "Failed to seteuid(~D): ~a~%" (pwent-uid pwent) c)
 	    (outline "421 Local configuration error.")
 	    (return :quit))))
       
       (when (null (ftp-chdir (pwent-dir pwent)))
-	(ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
+	(ftp-log-client client "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    
 	;; Anonymous/restricted users have no alternative
 	(when (or (anonymous client) (restricted client))
@@ -607,7 +607,7 @@
 	  (return :quit))
 	    
 	(if* (not (ftp-chdir "/"))
-	   then (ftp-log "Failed to chdir(/)~%")
+	   then (ftp-log-client client "Failed to chdir(/)~%")
 		(outline "421 Local configuration error.")
 		(return :quit)
 	   else (setf (pwent-dir pwent) "/")
@@ -623,12 +623,12 @@
     (let ((pwent (pwent client)))
       (if (null (ftp-chdir (pwent-dir pwent)))
 	  (progn
-	    (ftp-log "Failed to chdir(~A)~%" (pwent-dir pwent))
+	    (ftp-log-client client "Failed to chdir(~A)~%" (pwent-dir pwent))
 	    (outline "421 Local configuration error.")
 	    (return nil)))
       (handler-case (chroot (pwent-dir pwent))
 	(error (c)
-	  (ftp-log "Failed to chroot(~a): ~a~%" (pwent-dir pwent) c)
+	  (ftp-log-client client "Failed to chroot(~a): ~a~%" (pwent-dir pwent) c)
 	  (outline "421 Local configuration error.")
 	  (return nil)))
       (setf (pwent-dir pwent) "/")
@@ -691,9 +691,7 @@
 		(< port 1024))
 	    (return
 	      (progn
-		(ftp-log "Client from ~A tried to set PORT ~A:~A~%"
-			 (socket:ipaddr-to-dotted 
-			  (socket:remote-host (client-sock client)))
+		(ftp-log-client client "Tried to set PORT ~A:~A~%"
 			 (socket:ipaddr-to-dotted addr)
 			 port)
 		(outline "500 Illegal PORT Command"))))
@@ -847,7 +845,7 @@
 			    :reuse-address t
 			    :type :hiper))
     (error (c)
-      (ftp-log "make-active-connection: make-socket failed; ~A~%" c)
+      (ftp-log-client client "make-active-connection: make-socket failed; ~A~%" c)
       nil)))
 
 (defun establish-data-connection (client)
@@ -1769,7 +1767,7 @@ like `make' that rely on file timestamps.
 	    (outline "550 ~A: ~A" filename (strerror 
 					    (excl::syscall-error-errno c))))
 	  (error (c)
-	    (ftp-log "site umask ~A failed: ~A~%" fullpath c)
+	    (ftp-log-client client "site umask ~A failed: ~A~%" fullpath c)
 	    (outline "550 ~A: Unknown error" filename))
 	  (:no-error (c)
 	    (declare (ignore c))
