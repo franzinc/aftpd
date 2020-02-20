@@ -1,0 +1,14 @@
+[Unit]
+Description=franz ftp server
+After=syslog.target
+After=network.target
+
+[Service]
+Type=forking
+Restart=always
+ExecStart=/usr/sbin/aftpd
+ExecStop=/usr/bin/kill `/usr/sbin/pidof /usr/sbin/aftpd`
+ExecReload=/usr/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

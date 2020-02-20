@@ -72,7 +72,7 @@ The default installation process installs the program in the
 /usr/local/sbin/aftpd directory.  If this is not what you want, you
 can edit 'makefile' and the appropriate startup script for the
 platform:
-  Linux:  aftpd.init
+  Linux:  aftpd.service [systemd]
   Solaris: S99aftpd
   FreeBSD: rc.aftpd.sh
 

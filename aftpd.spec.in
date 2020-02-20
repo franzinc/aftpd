@@ -27,7 +27,7 @@ make
 
 %install
 rm -rf $RPM_BUILD_ROOT
-mkdir -p $RPM_BUILD_ROOT/etc/init.d
+mkdir -p $RPM_BUILD_ROOT/lib/systemd/system
 mkdir -p $RPM_BUILD_ROOT/etc/logrotate.d
 mkdir -p $RPM_BUILD_ROOT/usr/sbin
 mkdir -p $RPM_BUILD_ROOT%{_libdir}
@@ -45,12 +45,12 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-/etc/init.d/aftpd
+/lib/systemd/system/aftpd.service
 %{_libdir}/aftpd
 /usr/sbin/aftpd
 %config(noreplace) /etc/aftpd.cl
 %config(noreplace) /etc/logrotate.d/aftpd
-%doc BUGS ChangeLog readme.txt binary-license.txt
+%doc BUGS readme.txt binary-license.txt
 
 %post
 /sbin/chkconfig --add aftpd

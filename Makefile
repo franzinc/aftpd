@@ -48,10 +48,10 @@ installer-package := aftpd-$(version)-installer.tar.gz
 REDHAT73 := $(shell rpm -q redhat-release-7.3 >/dev/null && echo yes)
 SUSE92 := $(shell rpm -q suse-release-9.2 >/dev/null && echo yes)
 
-DOC_FILES = BUGS ChangeLog readme.txt binary-license.txt
+DOC_FILES = BUGS readme.txt binary-license.txt
 SOURCEFILES = $(DOC_FILES) \
 	config.cl ftpd.cl ipaddr.cl load.cl Makefile \
-	rfc0959.txt S99aftpd aftpd.init rc.aftpd.sh aftpd.logrotate
+	rfc0959.txt S99aftpd aftpd.service rc.aftpd.sh aftpd.logrotate
 
 ifeq ($(at_franz),t)
 ALL_EXTRA = repo_check
@@ -77,7 +77,7 @@ aftpd/aftpd: FORCE
 
 install: FORCE
 	mkdir -p $(ROOT)/etc/init.d
-	cp -p aftpd.init $(ROOT)/etc/init.d/aftpd
+	cp -p aftpd.service $(ROOT)/lib/systemd/system/aftpd.service
 	rm -fr $(libdir)/aftpd.old
 	-mv $(libdir)/aftpd $(libdir)/aftpd.old
 	cp -r aftpd $(libdir)
@@ -100,7 +100,7 @@ tarball: all
 dist: tarball
 	tar zcf $(installer-package) \
 		aftp.tar.gz \
-		aftpd.init
+		aftpd.service
 
 src-tarball: FORCE
 	rm -fr aftpd-$(version) aftpd-$(version).tar.gz
